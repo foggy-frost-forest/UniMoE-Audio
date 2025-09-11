@@ -31,8 +31,25 @@ except:
 
 class Dac:
     def __init__(self):
+        # Prefer an explicit path from env, then fall back to paths relative to this file and CWD
         # model_path = dac.utils.download(model_type="16khz")
-        model_path = "dac_model/weights_16khz.pth"
+        env_path = os.environ.get("DAC_WEIGHTS")
+        candidates = []
+        if env_path:
+            candidates.append(env_path)
+        base_dir = os.path.dirname(__file__)
+        candidates.extend([
+            os.path.join(base_dir, "dac_model", "weights_16khz.pth"),
+            os.path.join(base_dir, "weights_16khz.pth"),
+            os.path.join(os.getcwd(), "utils", "dac_model", "weights_16khz.pth"),
+            os.path.join(os.getcwd(), "dac_model", "weights_16khz.pth"),
+        ])
+        model_path = next((p for p in candidates if p and os.path.isfile(p)), None)
+        if not model_path:
+            searched = "\n - " + "\n - ".join(candidates)
+            raise FileNotFoundError(
+                "DAC weights not found. Please place weights_16khz.pth in one of the following locations or set DAC_WEIGHTS to an absolute path:" + searched
+            )
         self.model = dac.DAC.load(model_path)
         self.resampler = dict()
         if IS_CUDA:

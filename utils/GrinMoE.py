@@ -13,7 +13,7 @@ from deepspeed.utils.timer import SynchronizedWallClockTimer
 from torch import Tensor
 from transformers.activations import ACT2FN
 
-from GrinQwenVL_v5_utils import compress_matrix, decompress_matrix
+from .GrinQwenVL_v5_utils import compress_matrix, decompress_matrix
 
 
 class SharedExpertMLP(nn.Module):

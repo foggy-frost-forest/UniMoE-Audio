@@ -7,3 +7,5 @@ assets/audios/*.txt
 assets/audios/*.wav
 assets/audios/*.zip
 assets/audios/*.tar.gz
+
+utils/dac_model/weights_16khz.pth

@@ -26,10 +26,10 @@
 
 | Prompt | Audio |
 |:--:|:--:|
-| This song contains several drum hits and percussive instruments playing a fast paced rhythm that motivates dancing along. An e-bass is bringing the low end supporting the drums. Cuatro guitars are strumming chords as a rhythmic addition. Trumpets are playing a loud and catchy melody. Some of the musical elements are slightly panned to the left and right side of the speakers. This song may be playing at a cheerful event. | [Play](https://raw.githubusercontent.com/foggy-frost-forest/UniMoE-Audio/main/assets/audios/1j4rFfU5XKQ.mp3) |
-| This song contains a digital drum playing a simple pattern with a kick and a snare sound. Synthesizers are playing a repeating melody in the higher register. Another synth sound is playing a more aggressive lead sound with a countermelody. A string sample is being used to create a short hit. This song may be playing during a car ride.| [Play](https://raw.githubusercontent.com/foggy-frost-forest/UniMoE-Audio/main/assets/audios/2UY_-oF1vqo.mp3) |
-| This is a four on the floor style of production. The song is a drum and bass type of song with a bright and fuzzy synth to add a melodic element. The first part of the song feels suspenseful. | [Play](https://raw.githubusercontent.com/foggy-frost-forest/UniMoE-Audio/main/assets/audios/c_a74UO2ftg.mp3) |
-| This is a rock music piece. There is a medium-to-high pitched electric guitar solo at the forefront. In the melodic background, a keyboard and a bass guitar repeating the same pattern can be heard. The acoustic drums are playing a loud and slightly fast-paced rock drum beat. There is a rebellious atmosphere to this piece. It can be used in the soundtrack of a teenage drama or a crime shootout video game.| [Play](https://raw.githubusercontent.com/foggy-frost-forest/UniMoE-Audio/main/assets/audios/C1M5xqDQW58.mp3) |
+| This song contains several drum hits and percussive instruments playing a fast paced rhythm that motivates dancing along. An e-bass is bringing the low end supporting the drums. Cuatro guitars are strumming chords as a rhythmic addition. Trumpets are playing a loud and catchy melody. Some of the musical elements are slightly panned to the left and right side of the speakers. This song may be playing at a cheerful event. | [▶️ Play (MP4)](assets/audios/demo_1.mp4) |
+| This song contains a digital drum playing a simple pattern with a kick and a snare sound. Synthesizers are playing a repeating melody in the higher register. Another synth sound is playing a more aggressive lead sound with a countermelody. A string sample is being used to create a short hit. This song may be playing during a car ride. | [▶️ Play (MP4)](assets/audios/demo_2.mp4) |
+| This is a four on the floor style of production. The song is a drum and bass type of song with a bright and fuzzy synth to add a melodic element. The first part of the song feels suspenseful. | [▶️ Play (MP4)](assets/audios/demo_3.mp4) |
+| This is a rock music piece. There is a medium-to-high pitched electric guitar solo at the forefront. In the melodic background, a keyboard and a bass guitar repeating the same pattern can be heard. The acoustic drums are playing a loud and slightly fast-paced rock drum beat. There is a rebellious atmosphere to this piece. It can be used in the soundtrack of a teenage drama or a crime shootout video game. | [▶️ Play (MP4)](assets/audios/demo_4.mp4) |
 |||
 
 ## Structure
@@ -41,7 +41,6 @@ We introduce the Mix-of-ALL architecture—an end-to-end universal audio generat
 - Mixture-of-Attention Architecture: By introducing dynamic activation strategies into the attention modules, the model selectively activates attention heads, significantly expanding the parameter activation space and unlocking greater potential.
 
 Together, these advances form a powerful and efficient framework for high-quality, flexible audio generation across multiple modalities. The model architecture and training pipeline are shown in the figures below:
-
 |   |   |
 |:--:|:--:|
 | <img src="assets/UniMoE_Audio_model.png" width="95%"/> | <img src="assets/UniMoE_Audio_training.png" width="95%"/> |
@@ -62,7 +61,17 @@ We recommend using conda to install the environment.
 conda env create -f configs/enviroment.yml      # add -n for your name
 conda activate unimoe-audio                     # default name
 ```
-
+then install the torch packages
+  ```bash
+   # Use the official index
+   pip install torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 --index-url https://download.pytorch.org/whl/cu121
+   
+   # Use Tsinghua mirror source
+   pip install torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 -i https://pypi.tuna.tsinghua.edu.cn/simple/ --extra-index-url https://download.pytorch.org/whl/cu121
+   
+   # Use Alibaba Cloud mirror source
+   pip install torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 -i https://mirrors.aliyun.com/pypi/simple/ --extra-index-url https://download.pytorch.org/whl/cu121
+   ```
 ## UniMoE Audio Weights
 All weights should be downloaded to ensure use.
 After downloading all of them, organize the weights as follows in './models/UniMoE_Audio-preview' folder:
@@ -82,13 +91,12 @@ models
 
 `inference.py`: Simplified inference function for quick single-task calls.
 ```bash
-cd path/to/UniMoE-Audio/examples
 conda activate unimoe-audio
 # Music Generating
-python inference.py --task text_to_music --input "Caption about music" --output ./music_output --model /path/to/your/model
+python examples/inference.py --task text_to_music --input "Caption about music" --output ./music_output --model /path/to/your/model
 
 # Voice Cloning / TTS
-python inference.py --task text_to_speech --input "Input text" --ref-audio ref.mp3 --ref-text "Reference text" --output ./speech_output --model /path/to/your/model
+python examples/inference.py --task text_to_speech --input "Input text" --ref-audio ref.mp3 --ref-text "Reference text" --output ./speech_output --model /path/to/your/model
 ```
 
 `inference_framework.py`: Complete batch processing framework with configuration files.

@@ -167,11 +167,12 @@ dependencies:
       - termcolor==3.1.0
       - threadpoolctl==3.6.0
       - tokenizers==0.21.0
-      - torch==2.1.1+cu121
+      # PyTorch CUDA packages removed - install separately using PyTorch index
+      # - torch==2.1.1+cu121
       - torch-stoi==0.2.3
-      - torchaudio==2.1.1+cu121
+      # - torchaudio==2.1.1+cu121
       - torchcrepe==0.0.24
-      - torchvision==0.16.1+cu121
+      # - torchvision==0.16.1+cu121
       - tqdm==4.67.1
       - traitlets==5.14.3
       - transformers==4.53.1
