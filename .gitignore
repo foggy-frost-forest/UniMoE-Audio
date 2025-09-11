@@ -1,0 +1,9 @@
+.DS_Store
+__pycache__
+examples/example_usage.py
+examples/inference_example.py
+assets/*.pdf
+assets/audios/*.txt
+assets/audios/*.wav
+assets/audios/*.zip
+assets/audios/*.tar.gz
