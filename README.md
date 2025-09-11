@@ -24,13 +24,15 @@
 
 ## Performance show
 
-| Prompt | Audio |
+🎵 **[🌐 Online Preview with Video Player](docs/music.html)** - Click to play MP4 files directly in your browser
+
+<!-- | Prompt | Audio |
 |:--:|:--:|
 | This song contains several drum hits and percussive instruments playing a fast paced rhythm that motivates dancing along. An e-bass is bringing the low end supporting the drums. Cuatro guitars are strumming chords as a rhythmic addition. Trumpets are playing a loud and catchy melody. Some of the musical elements are slightly panned to the left and right side of the speakers. This song may be playing at a cheerful event. | [▶️ Play (MP4)](assets/audios/demo_1.mp4) |
 | This song contains a digital drum playing a simple pattern with a kick and a snare sound. Synthesizers are playing a repeating melody in the higher register. Another synth sound is playing a more aggressive lead sound with a countermelody. A string sample is being used to create a short hit. This song may be playing during a car ride. | [▶️ Play (MP4)](assets/audios/demo_2.mp4) |
 | This is a four on the floor style of production. The song is a drum and bass type of song with a bright and fuzzy synth to add a melodic element. The first part of the song feels suspenseful. | [▶️ Play (MP4)](assets/audios/demo_3.mp4) |
 | This is a rock music piece. There is a medium-to-high pitched electric guitar solo at the forefront. In the melodic background, a keyboard and a bass guitar repeating the same pattern can be heard. The acoustic drums are playing a loud and slightly fast-paced rock drum beat. There is a rebellious atmosphere to this piece. It can be used in the soundtrack of a teenage drama or a crime shootout video game. | [▶️ Play (MP4)](assets/audios/demo_4.mp4) |
-|||
+||| -->
 
 ## Structure
 
