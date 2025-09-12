@@ -4,6 +4,7 @@ import json
 import math
 import os
 import re
+import shutil
 import sys
 import time
 from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
@@ -31,26 +32,43 @@ except:
 
 class Dac:
     def __init__(self):
-        # Prefer an explicit path from env, then fall back to paths relative to this file and CWD
-        # model_path = dac.utils.download(model_type="16khz")
+        # Check if model exists in ./utils/dac_model, if not, download it
+        base_dir = os.path.dirname(__file__)
+        dac_model_dir = os.path.join(base_dir, "dac_model")
+        model_path = os.path.join(dac_model_dir, "weights_16khz.pth")
+        
+        # Check if model exists in the expected location
+        if not os.path.isfile(model_path):
+            print(f"DAC model not found at {model_path}, downloading...")
+            # Create directory if it doesn't exist
+            os.makedirs(dac_model_dir, exist_ok=True)
+            # Download the model
+            downloaded_path = dac.utils.download(model_type="16khz")
+            # Move the downloaded model to our target location
+            shutil.move(downloaded_path, model_path)
+            print(f"DAC model downloaded and saved to {model_path}")
+        
+        # Fallback to environment variable or other locations if needed
         env_path = os.environ.get("DAC_WEIGHTS")
         candidates = []
         if env_path:
             candidates.append(env_path)
-        base_dir = os.path.dirname(__file__)
+        
         candidates.extend([
-            os.path.join(base_dir, "dac_model", "weights_16khz.pth"),
+            model_path,  # Our primary location
             os.path.join(base_dir, "weights_16khz.pth"),
             os.path.join(os.getcwd(), "utils", "dac_model", "weights_16khz.pth"),
             os.path.join(os.getcwd(), "dac_model", "weights_16khz.pth"),
         ])
-        model_path = next((p for p in candidates if p and os.path.isfile(p)), None)
-        if not model_path:
+        
+        final_model_path = next((p for p in candidates if p and os.path.isfile(p)), None)
+        if not final_model_path:
             searched = "\n - " + "\n - ".join(candidates)
             raise FileNotFoundError(
                 "DAC weights not found. Please place weights_16khz.pth in one of the following locations or set DAC_WEIGHTS to an absolute path:" + searched
             )
-        self.model = dac.DAC.load(model_path)
+            
+        self.model = dac.DAC.load(final_model_path)
         self.resampler = dict()
         if IS_CUDA:
             self.model = self.model.to("cuda")
@@ -90,7 +108,7 @@ class Dac:
         """
         codes : (1, channel, length)
         """
-        assert torch.tensor(codes).shape[0] == 1 and torch.tensor(codes).shape[1] == 12
+        assert codes.shape[0] == 1 and codes.shape[1] == 12
         z, _, _ = self.model.quantizer.from_codes(codes.to(self.model.device))
         audio_out = self.model.decode(z)[0].detach().cpu()
 

@@ -14,9 +14,9 @@ import threading
 import itertools
 
 # Import necessary modules
-from deepspeed_moe_inference_utils import *
-from dac_utils import Dac, DecoderOutput, _generate_output, _prepare_audio_prompt
-from UniAudioRVQQwen2MoE import (
+from .deepspeed_moe_inference_utils import *
+from .dac_utils import Dac, DecoderOutput, _generate_output, _prepare_audio_prompt
+from .UniAudioRVQQwen2MoE import (
     UniAudioRVQQwen2_5VLMoEConfig,
     UniAudioRVQQwen2_5VLMoEForConditionalGeneration,
 )
@@ -88,8 +88,12 @@ class UniMoEAudio:
 
     def __del__(self):
         """Cleanup temporary directory."""
-        if hasattr(self, 'TEMP_DIR') and os.path.exists(self.TEMP_DIR):
-            shutil.rmtree(self.TEMP_DIR, ignore_errors=True)
+        try:
+            if hasattr(self, 'TEMP_DIR') and self.TEMP_DIR is not None and os.path.exists(self.TEMP_DIR):
+                shutil.rmtree(self.TEMP_DIR, ignore_errors=True)
+        except (AttributeError, TypeError):
+            # Ignore errors during cleanup in case attributes are already None
+            pass
 
     def _preprocess_codec(self, codec, codec_delay_pattern, codec_channels, codec_bos_value, codec_eos_value, codec_pad_value):
         """Preprocess codec tokens with delay patterns."""

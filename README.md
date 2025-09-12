@@ -19,7 +19,8 @@
 
 ## News
 
-- [9/10] 🔥 We released **UniMoE_Audio-preview**. Check out the [paper]() and [demo]().
+- [9/10] 🔥 We released **UniMoE_Audio-preview**. 
+<!-- Check out the [paper]() and [demo](). -->
 
 
 ## Performance show
@@ -83,8 +84,8 @@ then install the torch packages
    pip install torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 -i https://mirrors.aliyun.com/pypi/simple/ --extra-index-url https://download.pytorch.org/whl/cu121
    ```
 ## UniMoE Audio Weights
-All weights should be downloaded to ensure use.
-After downloading all of them, organize the weights as follows in './models/UniMoE_Audio-preview' folder:
+`All weights` should be downloaded to ensure use.
+After downloading all of them, organize the weights as follows in '/path/to/UniMoE-Audio-preview' folder:
 ```
 models
 └── UniMoE_Audio-preview
@@ -92,6 +93,8 @@ models
     ├── model-00002-of-00003.safetensors
     └── model-00003-of-00003.safetensors
 ```
+A `dac model` is also required to be downloaded in '/path/to/UniMoE-Audio/utils/dac_model'.
+It will be automatically downloaded when running the first time.
 
 ## How to infer and deploy your demo
 
@@ -102,24 +105,31 @@ models
 `inference.py`: Simplified inference function for quick single-task calls.
 ```bash
 conda activate unimoe-audio
+cd examples
 # Music Generating
-python examples/inference.py --task text_to_music --input "Caption about music" --output ./music_output --model /path/to/your/model
+python inference.py --task text_to_music --input "Caption about music" --output ./music_output --model /path/to/your/model
 
 # Voice Cloning / TTS
-python examples/inference.py --task text_to_speech --input "Input text" --ref-audio ref.mp3 --ref-text "Reference text" --output ./speech_output --model /path/to/your/model
+python inference.py --task text_to_speech --input "Input text" --ref-audio ref.mp3 --ref-text "Reference text" --output ./speech_output --model /path/to/your/model
 ```
 
 `inference_framework.py`: Complete batch processing framework with configuration files.
 ```bash
-cd path/to/UniMoE-Audio/examples
+cd path/to/UniMoE-Audio
 conda activate unimoe-audio
-python inference_framework.py --config config.json --tasks tasks.json --output-results results.json
+python inference_framework.py --config test_config.json --tasks test_tasks.json --output-results results.json
 ```
-Details can be found in the [examples/README.md](examples/README.md)
+Details about json files can be found in the [examples/README.md](examples/README.md)
 
 ### To launch the online demo, run the following command:
+Firstly, please install the web dependencies:
 ```bash
-python web_demo.py --model ./models/UniMoE_Audio-preview
+cd path/to/UniMoE-Audio
+conda activate unimoe-audio
+pip install -r configs/requirements_web.txt
+```
+```bash
+python web_demo.py --model /path/to/your/model
 ```
 
 <!-- ## How to evaluate on datasets
