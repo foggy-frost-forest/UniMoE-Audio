@@ -34,11 +34,6 @@
 | This is a rock music piece. There is a medium-to-high pitched electric guitar solo at the forefront. In the melodic background, a keyboard and a bass guitar repeating the same pattern can be heard. The acoustic drums are playing a loud and slightly fast-paced rock drum beat. There is a rebellious atmosphere to this piece. It can be used in the soundtrack of a teenage drama or a crime shootout audio game. | <audio controls width="300" height="50"> <source src="https://github.com/foggy-frost-forest/UniMoE-Audio/raw/main/assets/audios/demo_4.mp3" type="audio/mpeg"> demo 4</audio> |
 |||
 
-https://github.com/user-attachments/assets/36177673-66f7-47e3-a3d8-77a86b95bd74
-https://github.com/user-attachments/assets/9b912163-db19-4938-b3b9-b073949ddeb2
-https://github.com/user-attachments/assets/2cf9c008-5500-4f01-b449-acd63e37e407
-https://github.com/user-attachments/assets/441495ff-34c0-451e-8943-a67883a7fb6e
-
 ## Structure
 
 We introduce the Mix-of-ALL architecture—an end-to-end universal audio generation model capable of unified multimodal audio synthesis. The system incorporates several key innovations:
