@@ -7,7 +7,8 @@
 
 <h4 align="center"> -->
 
-# Welcome to the repo of **UniMOE Audio**!
+
+# Welcome to the repo of **UniMoE Audio**!
 
 ### UniMoE Audio is an end-to-end large audio model for unified multimodal audio generation
 
@@ -19,7 +20,7 @@
 
 ## News
 
-- [9/10] 🔥 We released **UniMoE_Audio-preview**. 
+- [9/10] 🔥 We released **UniMoE-Audio-preview**. 
 <!-- Check out the [paper]() and [demo](). -->
 
 
@@ -83,6 +84,9 @@ then install the torch packages
    # Use Alibaba Cloud mirror source
    pip install torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 -i https://mirrors.aliyun.com/pypi/simple/ --extra-index-url https://download.pytorch.org/whl/cu121
    ```
+A `dac model` is also required to be downloaded in '/path/to/UniMoE-Audio/utils/dac_model'.
+It will be automatically downloaded when running the first time.
+
 ## UniMoE Audio Weights
 `All weights` should be downloaded to ensure use.
 After downloading all of them, organize the weights as follows in '/path/to/UniMoE-Audio-preview' folder:
@@ -93,9 +97,6 @@ models
     ├── model-00002-of-00003.safetensors
     └── model-00003-of-00003.safetensors
 ```
-A `dac model` is also required to be downloaded in '/path/to/UniMoE-Audio/utils/dac_model'.
-It will be automatically downloaded when running the first time.
-
 ## How to infer and deploy your demo
 
 ### 1.Make sure that all the weights are downloaded and the running environment is set correctly.
@@ -106,6 +107,7 @@ It will be automatically downloaded when running the first time.
 ```bash
 conda activate unimoe-audio
 cd examples
+
 # Music Generating
 python inference.py --task text_to_music --input "Caption about music" --output ./music_output --model /path/to/your/model
 
