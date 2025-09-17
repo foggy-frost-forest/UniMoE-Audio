@@ -36,13 +36,13 @@
 | This is a rock music piece. There is a medium-to-high pitched electric guitar solo at the forefront. In the melodic background, a keyboard and a bass guitar repeating the same pattern can be heard. The acoustic drums are playing a loud and slightly fast-paced rock drum beat. There is a rebellious atmosphere to this piece. It can be used in the soundtrack of a teenage drama or a crime shootout audio game. | <audio controls width="400" height="50"> <source src="https://github.com/foggy-frost-forest/UniMoE-Audio/raw/main/assets/audios/demo_4.mp3" type="audio/mpeg"> demo 4</audio> |
 |||
 
-https://github.com/user-attachments/assets/cbca3cd2-a8fd-4bb1-aa23-5b3b315eb193
+https://github.com/user-attachments/assets/08a9ee44-f62b-465f-9793-7e2a45573d29
 
-https://github.com/user-attachments/assets/e1221ecf-7ebe-4b3e-804a-3b3c0daed611
+https://github.com/user-attachments/assets/83adee25-957e-4c81-bff2-108b78633db7
 
-https://github.com/user-attachments/assets/b46f57e7-d7be-4df0-9a5d-9dcda8469634
+https://github.com/user-attachments/assets/910b1fb1-76c1-4743-9f83-36ecfcbf7f9b
 
-https://github.com/user-attachments/assets/f7ef42aa-2729-48b8-a373-92d8d0f3d681
+https://github.com/user-attachments/assets/2881161e-f86f-463d-a910-06ab04799eae
 
 ## Structure
 
