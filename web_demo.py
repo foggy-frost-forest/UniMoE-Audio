@@ -15,6 +15,8 @@ from loguru import logger
 import threading
 import itertools
 import argparse
+import glob
+import datetime
 
 from utils.mod import UniMoEAudio
 
@@ -34,6 +36,12 @@ os.makedirs(TEMP_DIR, exist_ok=True)
 # Set temporary directory environment variables
 os.environ["GRADIO_TEMP_DIR"] = TEMP_DIR
 os.environ["TMPDIR"] = TEMP_DIR
+
+# Cleanup configuration
+CLEANUP_INTERVAL = 300  # 5 minutes
+MAX_FILE_AGE = 3600     # 1 hour
+cleanup_thread = None
+cleanup_stop_event = threading.Event()
 
 
 
@@ -73,6 +81,54 @@ def create_theme():
     return theme
 
 
+def cleanup_temp_files():
+    """Clean up old temporary files."""
+    try:
+        current_time = time.time()
+        temp_pattern = os.path.join(TEMP_DIR, "*")
+        
+        for file_path in glob.glob(temp_pattern):
+            try:
+                if os.path.isfile(file_path):
+                    file_age = current_time - os.path.getmtime(file_path)
+                    if file_age > MAX_FILE_AGE:
+                        os.remove(file_path)
+                        logger.debug(f"Cleaned up old temp file: {file_path}")
+                elif os.path.isdir(file_path):
+                    # Clean up empty directories
+                    try:
+                        os.rmdir(file_path)
+                        logger.debug(f"Removed empty temp directory: {file_path}")
+                    except OSError:
+                        pass  # Directory not empty
+            except Exception as e:
+                logger.warning(f"Failed to clean up {file_path}: {e}")
+                
+    except Exception as e:
+        logger.error(f"Error during temp cleanup: {e}")
+
+def start_cleanup_thread():
+    """Start the background cleanup thread."""
+    global cleanup_thread
+    
+    def cleanup_worker():
+        while not cleanup_stop_event.is_set():
+            cleanup_temp_files()
+            cleanup_stop_event.wait(CLEANUP_INTERVAL)
+    
+    if cleanup_thread is None or not cleanup_thread.is_alive():
+        cleanup_thread = threading.Thread(target=cleanup_worker, daemon=True)
+        cleanup_thread.start()
+        logger.info(f"Started temp cleanup thread (interval: {CLEANUP_INTERVAL}s, max age: {MAX_FILE_AGE}s)")
+
+def stop_cleanup_thread():
+    """Stop the background cleanup thread."""
+    global cleanup_thread
+    cleanup_stop_event.set()
+    if cleanup_thread and cleanup_thread.is_alive():
+        cleanup_thread.join(timeout=5)
+        logger.info("Stopped temp cleanup thread")
+
 def initialize_model():
     """Initialize UniMoE Audio model."""
     global audio_model
@@ -81,6 +137,9 @@ def initialize_model():
     logger.info("Initializing UniMoE Audio model...")
     audio_model = UniMoEAudio(MODEL_PATH, device_id=DEVICE_ID)
     logger.info("Model initialization complete!")
+    
+    # Start cleanup thread after model initialization
+    start_cleanup_thread()
 
 
 
@@ -536,7 +595,14 @@ def main():
     print(f"Server: {args.host}:{args.port}")
     
     demo = create_demo()
-    demo.queue().launch(server_name=args.host, server_port=args.port, share=args.share, debug=False, show_api=False)
+    
+    try:
+        demo.queue().launch(server_name=args.host, server_port=args.port, share=args.share, debug=False, show_api=False)
+    except KeyboardInterrupt:
+        logger.info("Received interrupt signal, shutting down...")
+    finally:
+        stop_cleanup_thread()
+        logger.info("Cleanup complete, exiting.")
 
 
 if __name__ == "__main__":
