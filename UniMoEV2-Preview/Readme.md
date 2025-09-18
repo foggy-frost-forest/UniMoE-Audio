@@ -76,7 +76,7 @@ These arguments are unique to our Mixture-of-Experts (MoE) model configuration a
 | `--token_drop` | `bool` | **(Only effective if `--initialize True`)**<br>If `True`, enables the token dropping mechanism to manage expert capacity. |
 | `--drop_policy` | `str` | **(Only effective if `--token_drop True`)**<br>The policy for dropping tokens when an expert's capacity is exceeded. Options are `probs` or `position`. |
 | `--min_capacity` | `int` | **(Only effective if `--token_drop True`)**<br>The minimum capacity for each expert, ensuring it can process at least this many tokens. |
-| `--capacity_factor` | `float` | **(Only effective if `--token_drop True`)**<br>A factor used to calculate the total capacity of each expert. The capacity is typically calculated as `capacity_factor * (tokens_per_batch / num_experts)`. |
+| `--capacity_factor` | `float` | **(Only effective if `--token_drop True`)**<br>A factor used to calculate the total capacity of each expert. |
 | `--l_aux_weight` | `float` | **(Only effective if `--initialize True`)**<br>The total weight for the auxiliary load balancing loss (`L_aux`), which encourages tokens to be distributed evenly across experts. |
 | `--aux_balance_weight` | `float` | An additional weight applied to the auxiliary loss for output tokens. This can help stabilize training by putting more emphasis on balancing the load of important tokens. |
 
