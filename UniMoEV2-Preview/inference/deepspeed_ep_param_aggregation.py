@@ -12,7 +12,7 @@ except:
     pass
 
 
-# 尚不支持MP (zero3)
+# MP (Zero3) is not supported yet
 def aggregation(checkpoint_path, source_ep_num=8, target_ep_size=1, save_path=None, tie_lm_head=False):
     expert_pattern = r"layer_(\d+)_expert_(\d+)_mp_rank_00_model_states.pt"
     mlp_name_pattern = r"model\.layers\.(\d+)\.mlp\.dynamic_real_moe\.deepspeed_moe\.experts\.deepspeed_experts\.(\d+)"
