@@ -12,7 +12,6 @@ conda activate unimoev2
 # Install the required packages
 pip install -r requirements.txt
 ```
-*(Note: I've corrected `pip intall` to `pip install` and assumed your requirements file is named `requirements.txt`, which is a common convention.)*
 
 ## Prepare Your Data
 
