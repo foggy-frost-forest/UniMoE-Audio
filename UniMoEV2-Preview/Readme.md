@@ -1,8 +1,4 @@
-Of course! Here is the translated and polished version of your README, ready for your open-source project. I've improved the phrasing to be clear and welcoming for an international audience.
-
----
-
-# UniMoE
+# UniMoE (Preview)
 
 ## Installation
 
