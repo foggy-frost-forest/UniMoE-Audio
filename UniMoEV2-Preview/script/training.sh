@@ -6,7 +6,7 @@ echo "----------------------- WANDB --------------------------"
 
 cd /workspace/40103/orizyliu/UniMoE/github
 
-export WANDB_API_KEY='62c737acad0899311657f6993d6a5af062772ca3'
+export WANDB_API_KEY='your Weights and Biases api key'
 export WANDB_PROJECT='GrinMoEV5_Qwen2VL_2B'
 
 # **WANDB_WATCH** (`str`, *optional* defaults to `"false"`):
