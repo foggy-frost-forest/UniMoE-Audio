@@ -82,7 +82,7 @@ We propose UniMoE-Audio, a unified speech and music generation model based on a 
 - **Synergistic Joint Training**  
   End-to-end training on the curated balanced dataset, enabling effective cross-domain knowledge transfer.
 
-<img src="assets/img/AudioLLM_training_moe.png" alt="UniMoE-Audio Training Pipeline" style="max-width: 40%; width: 800px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
+<img src="assets/img/AudioLLM_training_moe.png" alt="UniMoE-Audio Training Pipeline" style="max-width: 40%; width: 600px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
 <p align="center"><strong>Fig. 2</strong>  UniMoE-Audio Training Pipeline</p>
 
 ## Installation
