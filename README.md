@@ -20,7 +20,7 @@
 
 ## News
 
-- [9/10] 🔥 We released **UniMoE-Audio-preview**. 
+- [2025-09-10] 🔥 We released **UniMoE-Audio-preview**. 
 <!-- Check out the [paper]() and [demo](). -->
 
 
