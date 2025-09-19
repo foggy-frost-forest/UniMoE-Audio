@@ -562,7 +562,6 @@ class Experts(deepspeed.moe.experts.Experts):
         self.num_local_experts = num_local_experts
 
         for expert in self.deepspeed_experts:
-            # TODO: Create param groups to handle expert + data case (e.g. param.group = moe_group)
             for name, param in expert.named_parameters():
                 param.allreduce = False
                 param.group_name = expert_group_name
