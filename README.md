@@ -8,9 +8,9 @@
 <h4 align="center"> -->
 
 
-# Welcome to the repo of **UniMoE Audio**!
+# Welcome to the repo of **UniMoE-Audio**!
 
-### UniMoE Audio is an end-to-end large audio model for unified multimodal audio generation
+### UniMoE-Audio is An Unified Speech and Music Generation with Dynamic-Capacity Mixture of Experts
 
 <!-- [![🤗Hugging Face](https://img.shields.io/badge/🤗Hugging_Face-Uni_MoE-yellow)](https://huggingface.co/foggyforest/UniMoE-Audio-preview)
 [![Project Page](https://img.shields.io/badge/Project_Page-Uni_MoE-blue)]()
@@ -44,19 +44,46 @@ https://github.com/user-attachments/assets/b46f57e7-d7be-4df0-9a5d-9dcda8469634
 
 https://github.com/user-attachments/assets/f7ef42aa-2729-48b8-a373-92d8d0f3d681
 
-## Structure
+## UniMoE-Audio
 
-We introduce the Mix-of-ALL architecture—an end-to-end universal audio generation model capable of unified multimodal audio synthesis. The system incorporates several key innovations:
+We propose UniMoE-Audio, a unified speech and music generation model based on a novel dynamic-capacity Mixture-of-Experts framework. By integrating a dynamic-capacity routing strategy for adaptive resource allocation and a hybrid expert design for functional decoupling, our architecture effectively mitigates the inherent task conflict between speech and music generation.
 
-- Adaptive Computation Allocation: A routing mechanism dynamically selects the number of activated experts based on the uncertainty estimated per audio frame, enabling computation that adapts to varying information density and prediction difficulty.
-- Multi-Granularity Expert Design: We deploy both dynamic and static experts. Dynamic experts are activated on-demand for task-specific processing, while static experts remain consistently active for general computation, achieving an optimal balance between performance and efficiency.
-- Mixture-of-Attention Architecture: By introducing dynamic activation strategies into the attention modules, the model selectively activates attention heads, significantly expanding the parameter activation space and unlocking greater potential.
+### Novelty and Contributions
 
-Together, these advances form a powerful and efficient framework for high-quality, flexible audio generation across multiple modalities. The model architecture and training pipeline are shown in the figures below:
-|   |   |
-|:--:|:--:|
-| <img src="assets/UniMoE_Audio_model.png" width="95%"/> | <img src="assets/UniMoE_Audio_training.png" width="95%"/> |
-| UniMoE Audio Model Architecture | UniMoE Audio Training Pipeline |
+---
+
+### Dynamic-capacity MoE for Mitigating Task Conflict
+
+**Key architectural optimizations:**
+
+- **Dynamic-capacity Routing Strategy**  
+  Dynamically adjusts the number of experts allocated to each token based on complexity, replacing conventional fixed-capacity routing with a Top-P sampling based approach.
+
+- **Hybrid Expert Design**  
+  - (1) Conditional dynamic experts for domain-specific knowledge  
+  - (2) Constantly active shared experts for domain-agnostic features  
+  - (3) Null experts enabling adaptive computation skipping  
+
+<img src="assets/img/AudioLLM_model-MoE.png" alt="UniMoE-Audio Structure" style="max-width: 100%; width: 600px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);">
+<p align="center"><strong>Fig. 1</strong>  UniMoE-Audio Structure</p>
+
+---
+
+### Three-stage Training Curriculum for Data Imbalance
+
+**Stages:**
+
+- **Independent Specialist Training**  
+  Pre-trains proto-experts on original, uncurated datasets to acquire domain-specific knowledge.
+
+- **MoE Fusion and Warmup**  
+  Integrates specialists into UniMoE-Audio using a curated, balanced dataset created via a data filtering pipeline.
+
+- **Synergistic Joint Training**  
+  End-to-end training on the curated balanced dataset, enabling effective cross-domain knowledge transfer.
+
+<img src="assets/img/AudioLLM_training_moe.png" alt="UniMoE-Audio Training Pipeline" style="max-width: 40%; width: 600px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);">
+<p align="center"><strong>Fig. 2</strong>  UniMoE-Audio Training Pipeline</p>
 
 ## Installation
 The following instructions are for Linux installation.
