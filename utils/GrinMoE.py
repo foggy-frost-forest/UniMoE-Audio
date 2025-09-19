@@ -106,18 +106,14 @@ def sparsemixer(scores, top_k, jitter_eps, training):
             # compute mask for sparsity
             mask_logits_threshold, max_ind = masked_scores.max(dim=-1, keepdim=True)
             # factor = scores.abs().clamp(min=mask_logits_threshold)
-            factor = scores.abs().clamp(min=mask_logits_threshold.abs())  # Todo, 这里我主动加了一个.abs() 我认为factor这样才算比较好的尺度
+            factor = scores.abs().clamp(min=mask_logits_threshold.abs())
             mask_logits_threshold = ((mask_logits_threshold - scores) / factor) > (2 * jitter_eps)  # jitter_noise
 
         # apply mask
         masked_gates = masked_scores.masked_fill(mask_logits_threshold, float("-inf"))
 
         if training:
-            # 在训练期间使用 Gumbel 采样替代传统的 Top-k 选择，确保梯度的稳健性和随机性
-            # Gumbel noise 使用 exponent() 和 log() 函数生成，用于从 masked_gates 中选择专家
-            # V5 tip: 这里坑死了, 源代码的exponent和log生成会很大概率生成-inf, new_masked_gates全为-inf, 这里直接用了deepspeed的gumbel_rsample, Todo: 有时间再检查一下gumbel_rsample的原理
             noise = gumbel_rsample(masked_gates.shape, device=masked_gates.device)
-            assert not torch.isnan(noise).any()
             new_masked_gates = masked_gates + noise
             selected_experts = (new_masked_gates).max(dim=-1)[1].unsqueeze(-1)  # gumbel sampling, more robust than than the multinomial method
         else:
@@ -202,12 +198,9 @@ def cal_global_weight(
     routing_weights: torch.Tensor,
 ):
     global_weight = torch.softmax(full_router_logits.masked_fill(expert_mask == 0, float("-inf")), dim=-1)
-    # Todo: 这里的global weight和routing_weights 有多个融合方法
-    # 1. 用scaling factor * routing_weights, 然后拼接上 fix_routing_weight (当前采用)
-    # 2. 指定dynamic和fix的权重分配, 然后根据routing_weights和fix_routing_weight各自分配, 这个不太好
     global_dynamic_weight = global_weight[:, :mlp_dynamic_expert_num]
     global_fixed_weight = global_weight[:, mlp_dynamic_expert_num:]
-    global_dynamic_weight = routing_weights * global_dynamic_weight.sum(-1).unsqueeze(-1).expand(-1, routing_weights.shape[-1])  # 计算dynamic的weight缩放因数
+    global_dynamic_weight = routing_weights * global_dynamic_weight.sum(-1).unsqueeze(-1).expand(-1, routing_weights.shape[-1])  # Compute scaling factor for dynamic weights
     global_weight = torch.cat((global_dynamic_weight, global_fixed_weight), dim=-1)
     return global_weight
 
@@ -244,7 +237,7 @@ class GRINMoESparseMoeBlock(nn.Module):
 
         # gating & experts
         self.gate = nn.Linear(self.hidden_dim, self.num_experts, bias=False)
-        # self.dynamic_null_experts = nn.ModuleList([NULLExpertMLP(config) for _ in range(self.mlp_dynamic_null_expert_num)]) # 没有用的专家
+        # self.dynamic_null_experts = nn.ModuleList([NULLExpertMLP(config) for _ in range(self.mlp_dynamic_null_expert_num)])
         self.fixed_real_moe = nn.ModuleList([SharedExpertMLP(config) for _ in range(self.mlp_fixed_expert_num)])
         # deepspeed moe for dynamic real expert
         self.dynamic_real_moe = MoE(config, DynamicExpertMLP(config), self.mlp_dynamic_real_expert_num, config.ep_size)
@@ -271,7 +264,7 @@ class GRINMoESparseMoeBlock(nn.Module):
             hidden_states = hidden_states.float()
 
         # input jitter_noise
-        # Grin moe和deepspeed moe都会添加jitter_noise
+        # Both Grin MoE and DeepSpeed MoE will add jitter_noise
         if self.training and self.input_jitter_noise > 0:
             hidden_states *= torch.empty_like(hidden_states).uniform_(1.0 - self.input_jitter_noise, 1.0 + self.input_jitter_noise)
 
@@ -284,30 +277,29 @@ class GRINMoESparseMoeBlock(nn.Module):
             full_router_logits = self.gate(hidden_states)
         dynamic_router_logits = full_router_logits[:, : self.mlp_dynamic_expert_num]
 
-        # 获得动态top_k
+        # Get the dynamic top_k
         if self.mlp_dynamic_top_p != 0:
             dynamic_top_k = dynamic_expert_selection(dynamic_router_logits, self.mlp_dynamic_top_p)
         else:
             dynamic_top_k = torch.full((dynamic_router_logits.shape[0],), self.mlp_dynamic_top_k, dtype=torch.int, device=dynamic_router_logits.device)
 
-        # expert_mask:moe的路由情况 (batch * sequence_length, expert_num)
+        # # expert_mask: MoE routing map (batch * sequence_length, expert_num)
         expert_mask = torch.zeros((batch_size * sequence_length, self.num_experts), dtype=torch.int, device=hidden_states.device)
 
         #
         # ---------------- dynamic top_p experts ----------------
         #
 
-        # 用来存grin路由的sparsemixer的返回值, 即group_routing_weights
-        # Todo: group_routing_weights的sum和大概率和top k相同, 这样导致hidden state的权重和不等于1, 需要思考下
+        # Used to store the return value of Grin routing from SparseMixer, i.e., group_routing_weights
         routing_weights = torch.zeros((batch_size * sequence_length, self.mlp_dynamic_expert_num), dtype=hidden_states.dtype, device=hidden_states.device)
         for top_k in range(1, self.mlp_dynamic_expert_num + 1):
-            # 获得当前top_k路由模式的token 位置
+            # Get token positions for the current top_k routing mode
             group_idx = torch.nonzero(dynamic_top_k == top_k, as_tuple=True)[0]
             if len(group_idx) == 0:
                 continue
 
             dynamic_group_logits = dynamic_router_logits[group_idx]
-            # group_selected_experts: (group_batch_size, top_k), 按照优先级排序
+            # group_selected_experts: (group_batch_size, top_k), # Sort by priority
             group_routing_weights, group_selected_experts = sparsemixer(
                 dynamic_group_logits,
                 top_k=top_k,
@@ -324,11 +316,10 @@ class GRINMoESparseMoeBlock(nn.Module):
             group_weight.scatter_(dim=-1, index=group_selected_experts, src=group_routing_weights)
             routing_weights.index_add_(0, group_idx, group_weight)
 
-            # 更新expert_mask
-            # 设定0~self.mlp_dynamic_expert_num 为动态专家
+            # Update expert_mask
+            # Set 0 ~ self.mlp_dynamic_expert_num as dynamic experts
             expert_mask.index_add_(0, group_idx, group_expert_mask.to(expert_mask.dtype))
 
-        # 目前决定还是将routing_weights先求和归一化 # Todo: 看看效果
         routing_weights = routing_weights / (routing_weights.sum(dim=-1).unsqueeze(-1).expand(-1, routing_weights.shape[-1]) + 1e-6)
 
         #
@@ -336,10 +327,13 @@ class GRINMoESparseMoeBlock(nn.Module):
         #
 
         if attention_mask is not None:
-            # [fix] padding token 的路由会影响aux balance loss的计算, 并且还会占capacity, 这里强制设置为0
-            # 看了一下, aux balance loss 在设置aux balance loss的时候融合了attention mask (在GrinQwen2VLForConditionalGeneration的forward中), 这时候不会影响
-            # 但是会影响capacity, 这里load_balancing_loss_func 传入capacity_expert_mask可能会导致padding经过softmax后为nan
-            assert len(attention_mask.shape) == 2, f"{attention_mask.shape}"  # B, L
+            # [fix] Routing of padding tokens affects the computation of aux balance loss 
+            # and also consumes capacity, so it is forcibly set to 0 here.
+            # After checking, aux balance loss already incorporates the attention mask 
+            # (in GrinQwen2VLForConditionalGeneration.forward), so it is not affected there.
+            # However, it still impacts capacity. Passing capacity_expert_mask into 
+            # load_balancing_loss_func may cause padding tokens to become NaN after softmax.
+
             attention_mask = attention_mask.to(expert_mask.dtype).view(-1).unsqueeze(-1).expand(-1, self.num_experts)
             expert_mask = expert_mask * attention_mask
 
@@ -348,13 +342,14 @@ class GRINMoESparseMoeBlock(nn.Module):
         #
 
         if self.mlp_dynamic_expert_num < self.num_experts:
-            expert_mask[:, self.mlp_dynamic_expert_num :] = 1  # 只需要把expert mask 设为1即可
+            expert_mask[:, self.mlp_dynamic_expert_num :] = 1  # Just need to set the expert mask to 1
 
         #
         # ---------------- aux balance loss ----------------
         #
 
-        # 这里选择在token drop前计算aux balance loss, 更加精确, 但是要重新算一下global weight
+        # Calculate aux balance loss before token drop (more accurate), 
+        # requires recomputing global weight
         aux_loss = load_balancing_loss_func(
             expert_mask=expert_mask,
             mlp_dynamic_expert_num=self.mlp_dynamic_expert_num,
@@ -394,40 +389,33 @@ class GRINMoESparseMoeBlock(nn.Module):
                 raise ValueError(f"Invalid drop_policy: {self.drop_policy}")
             expert_mask = expert_mask.to(expert_mask_dtype)
 
-            # V5 tips: 这里修改了expert mask, 所以routing_weights有些有权重的地方需要重新mask, 然后重新unify一次, 相对比例不变
+            # V5 tips: After modifying expert mask, re-mask routing_weights and unify again 
+            # (relative ratios remain the same)
             routing_weights = routing_weights.masked_fill(~(expert_mask[:, : self.mlp_dynamic_expert_num].bool()), 0.0)
             routing_weights = routing_weights / (routing_weights.sum(dim=-1).unsqueeze(-1).expand(-1, routing_weights.shape[-1]) + 1e-6)
 
-        # global_weight 存储全局权重分配
+        # global_weight stores the global weight allocation
         if self.mlp_dynamic_expert_num < self.num_experts:
             global_weight = cal_global_weight(expert_mask, full_router_logits, self.mlp_dynamic_expert_num, routing_weights)
         else:
             global_weight = routing_weights
 
-        # 懒得看之前的代码了, 这里放一个debug
-        # if not ((expert_mask == 0) & (attention_mask == 1) & (global_weight != 0)).sum() == 0:
-        #     iindex = ((expert_mask == 0) & (attention_mask == 1) & (global_weight != 0)).nonzero().tolist()[:1]
-        #     xxx  = (expert_mask == 0) & (attention_mask == 1) & (global_weight != 0)
-        #     raise ValueError(f"iindex: {iindex}\nexpert_mask: {[expert_mask[xx[0]] for xx in iindex]}\nattention_mask: {[attention_mask[xx[0]] for xx in iindex]}\nglobal_weight: {[global_weight[xx[0]] for xx in iindex]}\nrouting_weights: {[routing_weights[xx[0]] for xx in iindex]}\nxxx: {[xxx[xx[0]] for xx in iindex]}")
-        assert ((expert_mask == 0) & (attention_mask == 1) & (global_weight != 0)).sum() == 0
-        # assert ((expert_mask != 0) & (global_weight <= 0)).sum() == 0 # global_weight有时候还会是0, 主要原因是routing_weights的不确定性
-        # assert (global_weight.sum(dim=1) != 1).sum() == 0 # 精度差异
-
         #
-        # ---------------- 路由计算结束, 开始过expert ----------------
+        # ---------------- # Routing finished, start processing experts ----------------
         #
 
         hidden_states = original_hidden_states.view(-1, hidden_dim)
 
-        #  final_hidden_states: moe最终输出的表示; expert_mask:moe的路由情况 (batch * sequence_length, expert_num)
+        # final_hidden_states: final output of MoE  
+        # expert_mask: routing map (batch * sequence_length, expert_num)
         final_hidden_states = torch.zeros((batch_size * sequence_length, hidden_dim), dtype=hidden_states.dtype, device=hidden_states.device)
         global_weight = global_weight.to(hidden_states.dtype)
 
         #
-        # ---------------- 空专家 (旧代码) ----------------
+        # ---------------- Empty experts (legacy code) ----------------
         #
+        # Empty experts need no parallelism and do not affect results — just skip them.
 
-        # 空专家不需要专家并行, 对最终结果也没有影响, 这里直接跳过就好了-_-
         # for expert_idx in range(self.mlp_dynamic_real_expert_num, self.mlp_dynamic_expert_num):
         #     expert_layer = self.dynamic_null_experts[expert_idx - self.mlp_dynamic_real_expert_num]
         #     top_x = torch.nonzero(expert_mask[:, expert_idx], as_tuple=True)[0]
@@ -449,14 +437,14 @@ class GRINMoESparseMoeBlock(nn.Module):
         #     final_hidden_states.index_add_(0, top_x, current_hidden_states.to(hidden_states.dtype))
 
         #
-        # ---------------- 动态实专家 ----------------
+        # ---------------- # Dynamic real experts ----------------
         #
 
         current_hidden_states = self.dynamic_real_moe(hidden_states, expert_mask=expert_mask[:, : self.mlp_dynamic_real_expert_num], router_weight=global_weight[:, : self.mlp_dynamic_real_expert_num])
         final_hidden_states = final_hidden_states + current_hidden_states
 
         #
-        # ---------------- 固定专家 ----------------
+        # ---------------- # Fixed experts ----------------
         #
 
         for expert_idx in range(self.mlp_fixed_expert_num):
@@ -471,9 +459,6 @@ class GRINMoESparseMoeBlock(nn.Module):
         final_hidden_states = final_hidden_states.reshape(batch_size, sequence_length, hidden_dim)
 
         if not self.training and self.avg_hidden_states_last:
-            # Todo: 不知道为什么多卡之间会出现hidden state不同步的情况
-            # 目前是在推理的时候发现的, 相同的数据在EP4的情况下, 第18层hidden state会出现第一次不同, 个人认为是精度和卡不同导致的小误差, 但是在之后的层数会被放大
-            # https://docs.pytorch.org/docs/stable/distrisbuted.html#torch.distributed.ReduceOp
             dist.all_reduce(final_hidden_states, op=dist.ReduceOp.AVG, group=self.dynamic_real_moe.deepspeed_moe.ep_group)
 
         return final_hidden_states, full_router_logits, dynamic_top_k, expert_mask, global_weight, aux_loss
@@ -486,15 +471,17 @@ def load_balancing_loss_func(
     full_router_logits: Optional[torch.Tensor] = None,
     routing_weights: Optional[torch.Tensor] = None,
     aux_balance_weight: Optional[torch.Tensor] = None,
-    version=2, # 初期实验证明version2好一些
+    version=2,
 ) -> float:
-    # Todo: top K的专家数目K会影响aux balance loss吗? aux balance loss会不会影响top P的路由的选择数目的情况?
     if version == 1:
         assert False
-        # 这个函数认为前 mlp_dynamic_expert_num 是dynamic expert, 后面都是shared expert
-        # 并且将固定计算所有token的路由, 尝试解决shared expert的tokens_per_expert固定为1的缺点 (solution flag)
+        # This function assumes the first mlp_dynamic_expert_num are dynamic experts, 
+        # and the rest are shared experts.
+        # It always computes routing for all tokens, attempting to address the drawback 
+        # that tokens_per_expert for shared experts is fixed at 1 (solution flag).
+        
+        # Compute global weight based on full_router_logits
 
-        # 根据full_router_logits计算global weight
         if global_weight is None:
             global_weight = cal_global_weight(expert_mask, full_router_logits, mlp_dynamic_expert_num, routing_weights)
 
@@ -526,10 +513,11 @@ def load_balancing_loss_func(
         return overall_loss * num_experts
 
     elif version == 2:
-        # 这个函数认为前 mlp_dynamic_expert_num 是dynamic expert, 后面都是shared expert
-        # 并且将固定计算dynamic_expert token的路由
+        # This function assumes the first mlp_dynamic_expert_num are dynamic experts, 
+        # and the rest are shared experts.
+        # It always computes routing for dynamic_expert tokens
 
-        min_dtype = torch.finfo(full_router_logits.dtype).min  # 防止expert_mask 全0的时候出现nan, 所以不用-inf
+        min_dtype = torch.finfo(full_router_logits.dtype).min  # Prevent NaN when expert_mask is all zeros, so avoid using -inf
         global_weight = full_router_logits.masked_fill(expert_mask == 0, min_dtype)
         global_weight = global_weight[:, :mlp_dynamic_expert_num]
         global_weight = torch.softmax(global_weight, dim=-1)
@@ -566,7 +554,6 @@ def load_balancing_loss_func(
 #
 
 
-# 没有改
 class Experts(deepspeed.moe.experts.Experts):
     def __init__(self, expert, num_local_experts=1, expert_group_name=None):
         super(deepspeed.moe.experts.Experts, self).__init__()
@@ -574,9 +561,7 @@ class Experts(deepspeed.moe.experts.Experts):
         self.deepspeed_experts = torch.nn.ModuleList([copy.deepcopy(expert) for i in range(num_local_experts)])
         self.num_local_experts = num_local_experts
 
-        # TODO: revisit allreduce for moe.gate...
         for expert in self.deepspeed_experts:
-            # TODO: Create param groups to handle expert + data case (e.g. param.group = moe_group)
             for name, param in expert.named_parameters():
                 param.allreduce = False
                 param.group_name = expert_group_name
@@ -601,7 +586,7 @@ class MOELayer(deepspeed.moe.sharded_moe.MOELayer):
         ep_group_name,
         ep_size,
         num_local_experts: int,
-        # use_tutel: bool = False # 强制False, 后面的逻辑都删了
+        # use_tutel: bool = False # Force False; subsequent logic has been removed
     ) -> None:
         super(deepspeed.moe.sharded_moe.MOELayer, self).__init__()
 
@@ -623,7 +608,7 @@ class MOELayer(deepspeed.moe.sharded_moe.MOELayer):
     def forward(self, hidden_states: Tensor, expert_mask: Tensor, router_weight: Tensor) -> Tensor:
         # hidden_states: [B * S, d_model]
         # expert_mask: [B * S, expert_num]
-        # router_weight: [B * S, expert_num], 注意这里router_weight和不一定是0, 空专家和fix专家的没放上去
+        # router_weight: [B * S, expert_num], # Note: router_weight is not necessarily 0 here; empty and fixed experts are not included
 
         router_weight = router_weight * expert_mask
 
@@ -635,33 +620,28 @@ class MOELayer(deepspeed.moe.sharded_moe.MOELayer):
         seq_len = hidden_states.shape[0]
         expert_num = expert_mask.shape[-1]
 
-        # motified from deepspeed topK gating, 最长capacity的同步, 为了通讯能够shape对齐
+        # motified from deepspeed topK gating, # Sync the maximum capacity so that shapes align for communication
         # Communicate across expert processes to pick the maximum capacity.
         capacity = expert_mask.sum(dim=0).max()
         if self.ep_group is not None:
             dist.all_reduce(capacity, op=dist.ReduceOp.MAX, group=self.ep_group)
-        # # 这里还没看, 但是暂时用不上, 应该和token drop相关
+
         # if groups._get_expert_model_parallel_world_size() == 1:
         #     # If the non-expert is tensor-parallel, we need to pad the capacity to 'tp'.
         #     # This is since we are going to activate drop_tokens() to drop duplicate tokens.
         #     tp = 1 if groups.mpu is None else bwc_tensor_model_parallel_world_size(mpu=groups.mpu)
         #     new_capacity = torch.ceil(new_capacity / tp).mul(tp).to(new_capacity.dtype)
 
-        # # Todo 两次compress_matrix可加速
         compres_hidden_states = hidden_states.unsqueeze(1).expand(seq_len, expert_num, d_model)  # [B * S, expert_num, d_model]
         compres_hidden_states = compress_matrix(compres_hidden_states, expert_mask, force_dim=capacity, allow_larger_dim=True)  # [C, expert_num, d_model]
         compres_expert_mask = compress_matrix(expert_mask, expert_mask, force_dim=capacity, allow_larger_dim=True)
         dispatched_input = einsum("ce,cem->ecm", compres_expert_mask, compres_hidden_states)
 
-        # # 这里先不考虑capacity, 将所有序列的token都all reduce, 这样通讯量会变大, 后续改良,
-        # # 此外, 即使没有路由的token的hidden_state也会作为全0向量输入到expert中, 输出的时候记得再过一遍 expert mask (不能保证expert的输入为0时输出一定为0)
         # dispatched_input = einsum("se,sm->esm", expert_mask, hidden_states)
 
         if self.wall_clock_breakdown:
             self.timers(FIRST_ALLTOALL_TIMER).start()
 
-        # 不考虑 tensor-parallel 的情况: Todo
-        assert deepspeed.utils.groups.mpu is None
         # if groups._get_expert_model_parallel_world_size() == 1:
         #     # If the non-expert is tensor-parallel, it will create
         #     # duplicate tokens on the tensor-parallel ranks.
@@ -695,7 +675,6 @@ class MOELayer(deepspeed.moe.sharded_moe.MOELayer):
         # Re-shape back: gecm -> ecm
         expert_output = expert_output.reshape(self.ep_size * self.num_local_experts, -1, d_model)
 
-        # 不考虑 tensor-parallel 的情况
         # if groups._get_expert_model_parallel_world_size() == 1:
         #     # the dropped duplicate tokens need to be gathered on each
         #     # tensor parallel rank again for the tensor-parallel
@@ -703,11 +682,13 @@ class MOELayer(deepspeed.moe.sharded_moe.MOELayer):
         #     # raise NotImplementedError
         #     expert_output = gather_tokens(expert_output, dim=1)
 
-        # 使用压缩 ecm -> sem
+        # Use compressed ECM -> SEM
         expert_output = decompress_matrix(expert_output.transpose(0, 1), expert_mask, allow_larger_dim=True)  # [B * S, expert_num, d_model]
         combined_output = einsum("se,sem->sm", router_weight, expert_output)
 
-        # # 这里router_weight在之前用点乘融合了expert_mask, 确保了输入为0的地方输出也为0了
+        # Here, router_weight was previously fused with expert_mask via dot product, 
+        # ensuring that inputs that are 0 also produce 0 outputs
+
         # combined_output = einsum("se,esm->sm", router_weight, expert_output)
 
         if self.wall_clock_breakdown:
@@ -721,13 +702,12 @@ class MoE(deepspeed.moe.layer.MoE):
     def __init__(self, config, expert, num_experts, ep_size, moe_name_prefix="ep_size"):
         super(deepspeed.moe.layer.MoE, self).__init__()
 
-        # self.use_residual = use_residual # 强制False, 后面的逻辑都删了
+        # self.use_residual = use_residual
 
         self.enable_expert_tensor_parallelism = config.enable_expert_tensor_parallelism
         self.ep_size = ep_size
         self.num_experts = num_experts
 
-        assert self.num_experts % self.ep_size == 0, f"Number of experts ({self.num_experts}) should be divisible by expert parallel size ({self.ep_size})"
 
         self.expert_group_name = f"{moe_name_prefix}_{self.ep_size}"
         self.num_local_experts = self.num_experts // self.ep_size

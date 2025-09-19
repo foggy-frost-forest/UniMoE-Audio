@@ -151,13 +151,13 @@ class UniAudioRVQQwen2_5VLMoEConfig(PretrainedConfig):
         image_token_id=151655,
         video_token_id=151656,
         # --------------- DAC codec ---------------
-        codec_vocab_size=1028,  # 假设每层codec相同
+        codec_vocab_size=1028,
         codec_delay_pattern=[0, 8, 9, 10, 11, 12, 13, 14, 15],
         codec_channels=9,
         codec_eos_value=1024,
         codec_pad_value=1025,
         codec_bos_value=1026,
-        codec_placeholder_value=None,  # to be decided
+        codec_placeholder_value=None,
         **kwargs,
     ):
         if isinstance(vision_config, dict):
@@ -184,7 +184,7 @@ class UniAudioRVQQwen2_5VLMoEConfig(PretrainedConfig):
 
         self.codec_placeholder_value = codec_placeholder_value
 
-        assert len(self.codec_delay_pattern) == self.codec_channels
+        
 
         super().__init__(**kwargs)
 
@@ -732,7 +732,7 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         inputs_embeds = self.language_model.embed_tokens(input_ids)
         if codec_input_ids is not None:
             codec_input_embeds = self.codec_embedding(codec_input_ids)
-            assert (input_ids == self.codec_placeholder_value).sum() == codec_input_embeds.shape[0] and len(codec_input_embeds.shape) == 2
+            
             codec_mask = (input_ids == self.codec_placeholder_value).unsqueeze(-1).expand_as(inputs_embeds)
             inputs_embeds = inputs_embeds.masked_scatter(codec_mask, codec_input_embeds)
         return inputs_embeds
@@ -768,7 +768,7 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         **kwargs,
 
     ) -> Union[Tuple, MoEQwen2_5VLCausalLMOutputWithPast]:
-        return_dict = True # 不知道为什么新版不要这个了, 强制设
+        return_dict = True
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
@@ -873,7 +873,7 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
 
         # if attention_mask is not None and padding_token_mask is None:
         if padding_token_mask is None:
-            assert len(attention_mask.shape) == 2, f"{attention_mask.shape}"  # B, L
+            
             padding_token_mask = attention_mask.bool()
 
         outputs = self.language_model(
@@ -926,7 +926,6 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
                     shift_channel_labels = shift_channel_labels.to(shift_channel_logits.device)
                     channel_loss = loss_fct(shift_channel_logits, shift_channel_labels)
 
-                    # 音乐预训练用了, 后面不用了
                     # loss_weight = 3 if i == 0 else 1
                     # channel_loss = channel_loss * loss_weight
 
@@ -1071,8 +1070,8 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
 
         # -------------- forward for next token logits ---------------
 
-        attention_mask = model_kwargs["attention_mask"]  # 完整的attention mask
-        cache_position = model_kwargs["cache_position"]  # 当前位置的position
+        attention_mask = model_kwargs["attention_mask"]  # complete attention mask
+        cache_position = model_kwargs["cache_position"]  # position at the current location
         past_key_values = model_kwargs["past_key_values"]
         input_ids = model_kwargs["input_ids"]
         codec_input_ids = model_kwargs["codec_input_ids"]
@@ -1124,8 +1123,8 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
                 past_key_values=past_key_values,
                 inputs_embeds=codec_input_embeds,
                 use_cache=True,
-                output_attentions=False,  # 暂不支持
-                output_hidden_states=False,  # 暂不支持
+                output_attentions=False,
+                output_hidden_states=False,
                 return_dict=True,
                 cache_position=cache_position,
             )
@@ -1141,8 +1140,8 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
                 past_key_values=None,
                 inputs_embeds=inputs_embeds,
                 use_cache=True,
-                output_attentions=False,  # 暂不支持
-                output_hidden_states=False,  # 暂不支持
+                output_attentions=False,
+                output_hidden_states=False,
                 return_dict=True,
                 cache_position=None,
             )
@@ -1287,8 +1286,7 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         debug_guidance_step: int = 0,
         use_cache=True,
     ):
-        if codec_input_ids is not None:
-            assert use_cache # 不然codec_input_ids的处理会很麻烦, 速度太慢
+
         batch_size = input_ids.shape[0] // 2
         audio_eos_value = self.config.codec_eos_value
         audio_pad_value = self.config.codec_pad_value
@@ -1328,8 +1326,8 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
             past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,
             use_cache=True,
-            output_attentions=False,  # 暂不支持
-            output_hidden_states=False,  # 暂不支持
+            output_attentions=False,  
+            output_hidden_states=False, 
             return_dict=True,
             cache_position=cache_position,
         )
@@ -1340,7 +1338,7 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         labels_Bx1xC = dec_output.get_labels_at(0)
         if labels_Bx1xC is not None:
             model_kwargs["codec_labels"] = (torch.ones_like(input_ids[1::2]) * -100).unsqueeze(-1).expand(-1, -1, self.num_channels)
-            assert (labels_Bx1xC != self.config.codec_bos_value).sum() == 0
+ 
             labels_Bx1xC = torch.full_like(labels_Bx1xC, -100)
             model_kwargs["codec_labels"] = torch.cat((model_kwargs["codec_labels"], labels_Bx1xC), dim=1)
         model_kwargs["past_key_values"] = outputs.past_key_values

@@ -19,11 +19,15 @@ except:
     pass
 
 """
-import此文件会修改:
+Importing this file will modify:
 deepspeed.moe.sharded_moe.MOELayer.forward = gate_forward
 deepspeed.moe.sharded_moe.top2gating = top2gating
-去掉了其中AlltoAll的通讯, 使deepspeed moe能够在不需要deepspeed分布式启动的情况下单机进行推理, 但是无法使用ep_size(建议调整ep_size=1)
+
+It removes the AlltoAll distributed operation, allowing Deepspeed MoE to perform inference
+on a single machine without requiring a Deepspeed distributed launch. 
+However, ep_size cannot be used (it is recommended to set ep_size=1).
 """
+
 
 
 def _AllToAll_forward(ctx: Any, group: dist.ProcessGroup, input: Tensor) -> Tensor:  # type: ignore
@@ -42,7 +46,6 @@ def gate_forward(self, *input: Tensor, **kwargs: Any) -> Tensor:
     reshaped_input = input[0].reshape(-1, d_model)
 
     if self.use_tutel:
-        # not check yet # Todo
         self.l_aux, C, E, indices_, locations_, gates_, self.exp_counts = self.gate(reshaped_input, input[1], True)
         S, M = reshaped_input.size(0), reshaped_input.size(1)
 
@@ -61,7 +64,6 @@ def gate_forward(self, *input: Tensor, **kwargs: Any) -> Tensor:
     expert_output = expert_output.reshape(self.ep_size * self.num_local_experts, dispatched_input.shape[2], -1)
 
     if self.use_tutel:
-        # not check yet # Todo
         combined_output = self._tutel_dispatcher.decode(expert_output.view(E * C, M))
     else:
         combined_output = einsum("sec,ecm->sm", combine_weights.type_as(input[0]), expert_output)
