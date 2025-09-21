@@ -7,7 +7,7 @@ This example demonstrates how to use the UniMoEAudio class for:
 2. Text-to-Speech
 """
 import os
-from utils.mod import UniMoEAudio
+from utils.UniMoE_Audio_mod import UniMoEAudio
 
 OUTPUT_PATH = "./output"
 os.makedirs(OUTPUT_PATH, exist_ok=True)
