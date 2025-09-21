@@ -1,6 +1,11 @@
 .DS_Store
 ._*
 __pycache__
+
+# Vim swap files
+*.swp
+*.swo
+*~
 examples/example_usage.py
 examples/inference_example.py
 assets/*.pdf
