@@ -1,3 +1,8 @@
+# -*- coding: utf-8 -*-
+"""
+UniMoE Audio Module
+"""
+
 import sys
 import os
 import torch
@@ -13,13 +18,18 @@ from functools import lru_cache
 import threading
 import itertools
 
-# Import necessary modules
-from .deepspeed_moe_inference_utils import *
-from .dac_utils import Dac, DecoderOutput, _generate_output, _prepare_audio_prompt
-from .UniAudioRVQQwen2MoE import (
-    UniAudioRVQQwen2_5VLMoEConfig,
-    UniAudioRVQQwen2_5VLMoEForConditionalGeneration,
+# Import from our merged modules
+from .UniMoE_Audio_utils import (
+    Dac,
+    _prepare_audio_prompt,
+    DecoderOutput,
+    _generate_output,
 )
+from .UniMoE_Audio_model import (
+    UniAudioRVQQwen2_5VLMoEForConditionalGeneration,
+    UniAudioRVQQwen2_5VLMoEConfig,
+)
+
 
 class UniMoEAudio:
     """UniMoE Audio generation class for text-to-music and text-to-speech."""

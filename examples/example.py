@@ -6,16 +6,18 @@ This example demonstrates how to use the UniMoEAudio class for:
 3. Voice Cloning
 2. Text-to-Speech
 """
-
+import os
 from utils.mod import UniMoEAudio
 
+OUTPUT_PATH = "./output"
+os.makedirs(OUTPUT_PATH, exist_ok=True)
 # Initialize the UniMoE Audio model
 audio_generator = UniMoEAudio(model_path="path/to/model", device_id=0)
 
 # Generate music
 music_file = audio_generator.text_to_music(
     caption="A caption for music generation",
-    output_path="./output"
+    output_path=OUTPUT_PATH
 )
 
 # Voice Cloning
@@ -23,7 +25,7 @@ speech_file = audio_generator.text_to_speech(
     target_text="Hello world",
     reference_audio="reference audio path",
     reference_text="Reference transcript",
-    output_path="./output",
+    output_path=OUTPUT_PATH,
     max_audio_seconds= 30,
 )
 

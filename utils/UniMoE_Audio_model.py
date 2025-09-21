@@ -56,8 +56,8 @@ from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import (
     Qwen2RMSNorm,
     Qwen2_5_VLRotaryEmbedding,
 )
-from .GrinMoE import GRINMoESparseMoeBlock
-from .npu_qwen2_5vl import Qwen2_5_VisionTransformerPretrainedModel
+from .UniMoE_Audio_core import GRINMoESparseMoeBlock
+from .UniMoE_Audio_utils import Qwen2_5_VisionTransformerPretrainedModel
 
 logger = logging.get_logger(__name__)
 

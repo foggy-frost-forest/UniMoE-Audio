@@ -1,4 +1,5 @@
 .DS_Store
+._*
 __pycache__
 examples/example_usage.py
 examples/inference_example.py
@@ -9,4 +10,8 @@ assets/audios/*.zip
 assets/audios/*.tar.gz
 
 utils/dac_model/weights_16khz.pth
+utils_bk/
 docs/*.html
+
+*.tar
+*.tar.gz

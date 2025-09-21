@@ -13,7 +13,7 @@ from deepspeed.utils.timer import SynchronizedWallClockTimer
 from torch import Tensor
 from transformers.activations import ACT2FN
 
-from .GrinQwenVL_v5_utils import compress_matrix, decompress_matrix
+from .UniMoE_Audio_utils import compress_matrix, decompress_matrix
 
 
 class SharedExpertMLP(nn.Module):
@@ -51,11 +51,6 @@ class NULLExpertMLP(nn.Module):
     def forward(self, hidden_state):
         # return hidden_state * 0
         return torch.zeros_like(hidden_state, dtype=hidden_state.dtype, device=hidden_state.device)
-
-
-#
-# ---------------------------- copy from Grin ----------------------------
-#
 
 
 class mp(torch.autograd.Function):
@@ -156,16 +151,6 @@ def sparsemixer(scores, top_k, jitter_eps, training):
 
     multiplier = torch.concat(multiplier_list, dim=-1)
     selected_experts = torch.concat(selected_experts_list, dim=-1)
-
-    # print(multiplier.shape)
-    # if not ((multiplier != 0).sum(1) == top_k).all():
-    #     iidx = ((multiplier != 0).sum(0) != top_k).nonzero().tolist()[:3]
-    #     raise ValueError(f"top_k: {top_k} iidx: {iidx}\n multiplier: {[multiplier[xx[0]] for xx in iidx]}")
-
-    # if torch.any(torch.sum(selected_experts.unsqueeze(-1) == selected_experts.unsqueeze(-2), dim=-1) > 1):
-    #     iidx = (torch.sum(selected_experts.unsqueeze(-1) == selected_experts.unsqueeze(-2), dim=-1) > 1).nonzero().tolist()
-    #     raise AssertionError(f"iidx: {iidx}, selected_experts: {[selected_experts[xx[0]] for xx in iidx]}, masked_scores: {[masked_scores[xx[0]] for xx in iidx]}")
-
     return (
         multiplier,
         selected_experts,
@@ -743,4 +728,3 @@ class MoE(deepspeed.moe.layer.MoE):
 #
 # ---------------------------- moe done ----------------------------
 #
-
