@@ -1,4 +1,4 @@
-# UniMoE (Preview)
+# Dynamic Capacity MoE (Preview)
 
 ## Installation
 
