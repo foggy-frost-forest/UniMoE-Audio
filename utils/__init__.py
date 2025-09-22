@@ -4,25 +4,25 @@ UniMoE Audio Utils Package
 
 This package contains the merged utilities for UniMoE Audio model:
 - UniMoE_Audio_utils: DAC utilities, DeepSpeed MoE inference utilities, and matrix compression utilities
-- UniMoE_Audio_core: MoE core components including GRINMoESparseMoeBlock and related classes
-- UniMoE_Audio_model: Main model classes including UniAudioRVQQwen2_5VLMoEForConditionalGeneration
+- UniMoE_Audio_core: MoE core components including UniMoEAudioSparseMoeBlock and related classes
+- UniMoE_Audio_model: Main model classes including UniMoEAudioForConditionalGeneration
 - UniMoE_Audio_mod: High-level interface and convenience functions
 
 Usage:
     # Quick start with high-level interface
-    from utils import UniMoEAudio, load_unimoe_audio
+    ffrom utils.UniMoE_Audio_mod import UniMoEAudio
     
     # Load model
-    model = load_unimoe_audio("path/to/model")
+    model = UniMoEAudio("path/to/model")
     
     # Generate music
     audio = model.generate_music("A peaceful piano melody")
     
     # Generate speech
-    audio = model.generate_speech("Hello world", voice_description="friendly female voice")
+    audio = model.generate_speech("Hello world",  prompt_audio="prompt audio path", prompt_txt="prompt text")
 
     # Low-level access to components
-    from utils import GRINMoESparseMoeBlock, UniAudioRVQQwen2_5VLMoEForConditionalGeneration
+    from utils import UniMoEAudioSparseMoeBlock, UniMoEAudioForConditionalGeneration
 """
 
 import warnings
@@ -33,7 +33,6 @@ __version__ = "1.0.0"
 __author__ = "UniMoE Audio Team"
 __description__ = "UniMoE Audio: Unified Multimodal Expert Audio Generation"
 
-# Import utilities with error handling
 try:
     from .UniMoE_Audio_utils import (
         # DAC utilities
@@ -69,32 +68,32 @@ except ImportError as e:
 try:
     from .UniMoE_Audio_core import (
         # MoE blocks
-        GRINMoESparseMoeBlock,
-        MoE,
-        MOELayer,
-        Experts,
+        UniMoEAudioSparseMoeBlock,
+        UniMoEAudioMoE,
+        AudioMOELayer,
+        AudioExperts,
         
         # Expert selection and routing
-        sparsemixer,
-        dynamic_expert_selection,
-        cal_global_weight,
+        audio_sparse_expert_mixer,
+        audio_dynamic_expert_selection,
+        calculate_audio_global_routing_weight,
         
         # Loss functions
-        load_balancing_loss_func,
+        audio_load_balancing_loss_func,
         
         # MLP variants
-        SharedExpertMLP,
-        DynamicExpertMLP,
-        NULLExpertMLP,
+        AudioSharedExpertMLP,
+        AudioDynamicExpertMLP,
+        AudioNullExpertMLP,
     )
 except ImportError as e:
     warnings.warn(f"Failed to import from UniMoE_Audio_core: {e}")
     # Define dummy classes
-    class GRINMoESparseMoeBlock: pass
-    class MoE: pass
-    def load_balancing_loss_func(*args, **kwargs): pass
-    def sparsemixer(*args, **kwargs): pass
-    def dynamic_expert_selection(*args, **kwargs): pass
+    class UniMoEAudioSparseMoeBlock: pass
+    class UniMoEAudioMoE: pass
+    def audio_load_balancing_loss_func(*args, **kwargs): pass
+    def audio_sparse_expert_mixer(*args, **kwargs): pass
+    def audio_dynamic_expert_selection(*args, **kwargs): pass
 
 # Import model classes with error handling
 try:
@@ -174,19 +173,19 @@ __all__ = [
     "_generate_output",
     
     # Core MoE components
-    "GRINMoESparseMoeBlock",
-    "MoE",
-    "MOELayer", 
-    "Experts",
-    "load_balancing_loss_func",
-    "sparsemixer",
-    "dynamic_expert_selection",
-    "cal_global_weight",
+    "UniMoEAudioSparseMoeBlock",
+    "UniMoEAudioMoE",
+    "AudioMOELayer", 
+    "AudioExperts",
+    "audio_load_balancing_loss_func",
+    "audio_sparse_expert_mixer",
+    "audio_dynamic_expert_selection",
+    "calculate_audio_global_routing_weight",
     
     # MLP variants
-    "SharedExpertMLP",
-    "DynamicExpertMLP", 
-    "NULLExpertMLP",
+    "AudioSharedExpertMLP",
+    "AudioDynamicExpertMLP", 
+    "AudioNullExpertMLP",
     
     # Configuration classes
     "UniAudioRVQQwen2_5VLMoEConfig",

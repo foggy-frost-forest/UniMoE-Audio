@@ -19,8 +19,6 @@
 # limitations under the License.
 """PyTorch Qwen2-VL model."""
 
-
-
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -56,7 +54,7 @@ from transformers.models.qwen2_5_vl.modeling_qwen2_5_vl import (
     Qwen2RMSNorm,
     Qwen2_5_VLRotaryEmbedding,
 )
-from .UniMoE_Audio_core import GRINMoESparseMoeBlock
+from .UniMoE_Audio_core import UniMoEAudioSparseMoeBlock
 from .UniMoE_Audio_utils import Qwen2_5_VisionTransformerPretrainedModel
 
 logger = logging.get_logger(__name__)
@@ -65,14 +63,11 @@ FAST_INIT = True
 if FAST_INIT:
     logger.warning(f"using FAST initial for Grin Qwen2_vl !!!")
 
-
-
 class Qwen2_5_VLMoETextConfig(Qwen2_5_VLTextConfig):
     model_type = "qwen2_5_vl_moe_text"
 
     def __init__(
         self,
-        # --------------- Moe ---------------
         mlp_dynamic_expert_num=4,
         mlp_dynamic_null_expert_num=0,
         mlp_dynamic_top_p=0.7,
@@ -80,25 +75,18 @@ class Qwen2_5_VLMoETextConfig(Qwen2_5_VLTextConfig):
         mlp_fixed_expert_num=2,
         dynamic_intermediate_size=8960,
         shared_intermediate_size=8960,
-        # grin moe router
         ignore_differentiable_router=False,
-        # deepspeed moe ep
         enable_expert_tensor_parallelism: bool = False,
         ep_size=1,
         fixed_ep_size=1,
-        # jitter_noise
         router_jitter_noise=0.01,
         input_jitter_noise=0.01,
-        # token drop
         token_drop=False,
-        drop_policy: str = "probs",  # probs, position
+        drop_policy: str = "probs", 
         min_capacity: int = 8,
-        capacity_factor: float = 1.0,
-        # other args for moe
         fp32_gate=True,
         avg_hidden_states_last=False,
         drop_token_num_print=True,
-        # training args, it should not be set here by the way
         l_aux_weight=0,
         min_l_aux_weight=0,
         l_aux_weight_decay_steps=1,
@@ -106,34 +94,26 @@ class Qwen2_5_VLMoETextConfig(Qwen2_5_VLTextConfig):
     ):
 
         super().__init__(**kwargs)
-
         self.mlp_dynamic_expert_num = mlp_dynamic_expert_num
         self.mlp_dynamic_top_p = mlp_dynamic_top_p
         self.mlp_dynamic_top_k = mlp_dynamic_top_k
         self.mlp_fixed_expert_num = mlp_fixed_expert_num
         self.mlp_dynamic_null_expert_num = mlp_dynamic_null_expert_num
-
         self.dynamic_intermediate_size = dynamic_intermediate_size
         self.shared_intermediate_size = shared_intermediate_size
-
         self.ignore_differentiable_router = ignore_differentiable_router
-
         self.enable_expert_tensor_parallelism = enable_expert_tensor_parallelism
         self.ep_size = ep_size
         self.fixed_ep_size = fixed_ep_size
-
         self.input_jitter_noise = input_jitter_noise
         self.router_jitter_noise = router_jitter_noise
-
         self.token_drop = token_drop
         self.drop_policy = drop_policy
         self.min_capacity = min_capacity
         self.capacity_factor = capacity_factor
-
         self.fp32_gate = fp32_gate
         self.avg_hidden_states_last = avg_hidden_states_last
         self.drop_token_num_print = drop_token_num_print
-
         self.l_aux_weight = l_aux_weight
         self.min_l_aux_weight = min_l_aux_weight
         self.l_aux_weight_decay_steps = l_aux_weight_decay_steps
@@ -150,7 +130,6 @@ class UniAudioRVQQwen2_5VLMoEConfig(PretrainedConfig):
         vision_config=None,
         image_token_id=151655,
         video_token_id=151656,
-        # --------------- DAC codec ---------------
         codec_vocab_size=1028,
         codec_delay_pattern=[0, 8, 9, 10, 11, 12, 13, 14, 15],
         codec_channels=9,
@@ -168,23 +147,17 @@ class UniAudioRVQQwen2_5VLMoEConfig(PretrainedConfig):
         if isinstance(text_config, dict):
             self.text_config = self.sub_configs["text_config"](**text_config)
         elif text_config is None:
-            # For BC use all kwargs to init `TextConfig`
             self.text_config = self.sub_configs["text_config"](**kwargs)
 
         self.image_token_id = image_token_id
         self.video_token_id = video_token_id
-
-        # DAC codec
         self.codec_vocab_size = codec_vocab_size
         self.codec_delay_pattern = codec_delay_pattern
         self.codec_channels = codec_channels
         self.codec_eos_value = codec_eos_value
         self.codec_pad_value = codec_pad_value
         self.codec_bos_value = codec_bos_value
-
         self.codec_placeholder_value = codec_placeholder_value
-
-        
 
         super().__init__(**kwargs)
 
@@ -226,11 +199,9 @@ class Qwen2_5_VLMoEDecoderLayer(GradientCheckpointingLayer):
                 f"Sliding Window Attention is enabled but not implemented for `{config._attn_implementation}`; "
                 "unexpected results may be encountered."
             )
+
         self.self_attn = Qwen2_5_VLAttention(config, layer_idx)
-
-        # MoE Flag
-        self.mlp = GRINMoESparseMoeBlock(config)
-
+        self.mlp = UniMoEAudioSparseMoeBlock(config)
         self.input_layernorm = Qwen2RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.post_attention_layernorm = Qwen2RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.attention_type = config.layer_types[layer_idx]
@@ -239,23 +210,20 @@ class Qwen2_5_VLMoEDecoderLayer(GradientCheckpointingLayer):
         self,
         hidden_states: torch.Tensor,
         attention_mask: Optional[torch.Tensor] = None,
-        aux_balance_weight: Optional[torch.Tensor] = None, # MoE Flag Input
-        padding_token_mask: Optional[torch.Tensor] = None, # MoE Flag Input
+        aux_balance_weight: Optional[torch.Tensor] = None, 
+        padding_token_mask: Optional[torch.Tensor] = None, 
         position_ids: Optional[torch.LongTensor] = None,
         past_key_value: Optional[tuple[torch.Tensor]] = None,
         output_attentions: Optional[bool] = False,
-        output_router_logits_and_topk: Optional[bool] = False, # MoE Flag Input
+        output_router_logits_and_topk: Optional[bool] = False, 
         use_cache: Optional[bool] = False,
         cache_position: Optional[torch.LongTensor] = None,
-        position_embeddings: Optional[tuple[torch.Tensor, torch.Tensor]] = None,  # necessary, but kept here for BC
+        position_embeddings: Optional[tuple[torch.Tensor, torch.Tensor]] = None, 
         **kwargs: Unpack[FlashAttentionKwargs],
     ) -> tuple[torch.FloatTensor, Optional[tuple[torch.FloatTensor, torch.FloatTensor]]]:
         
         residual = hidden_states
-
         hidden_states = self.input_layernorm(hidden_states)
-
-        # Self Attention
         hidden_states, self_attn_weights, present_key_value = self.self_attn(
             hidden_states=hidden_states,
             attention_mask=attention_mask,
@@ -267,11 +235,8 @@ class Qwen2_5_VLMoEDecoderLayer(GradientCheckpointingLayer):
             position_embeddings=position_embeddings,
         )
         hidden_states = residual + hidden_states
-
-        # Fully Connected
         residual = hidden_states
         hidden_states = self.post_attention_layernorm(hidden_states)
-        # MoE Flag
         hidden_states, router_logits, router_top_k, router_expert_mask, router_weight, aux_loss = self.mlp(hidden_states, padding_token_mask, aux_balance_weight)
         hidden_states = residual + hidden_states
 
@@ -280,7 +245,6 @@ class Qwen2_5_VLMoEDecoderLayer(GradientCheckpointingLayer):
         if output_attentions:
             outputs += (self_attn_weights,)
 
-        # MoE Flag - return
         if output_router_logits_and_topk:
             outputs += (router_logits,)
             outputs += (router_top_k,)
@@ -307,10 +271,7 @@ class Qwen2_5_VLMoEPreTrainedModel(PreTrainedModel):
     def _init_weights(self, module):
         std = self.config.initializer_range
         if FAST_INIT:
-            """
-            only initialize the gate linear since we will load state dict for other parameters
-            """
-            if isinstance(module, GRINMoESparseMoeBlock):
+            if isinstance(module, UniMoEAudioSparseMoeBlock):
                 module.gate.weight.data.normal_(mean=0.0, std=std)
                 if module.gate.bias is not None:
                     module.gate.bias.data.zero_()
@@ -337,7 +298,6 @@ class Qwen2_5_VLMoETextModel(Qwen2_5_VLMoEPreTrainedModel):
         super().__init__(config)
         self.padding_idx = config.pad_token_id
         self.vocab_size = config.vocab_size
-
         self.embed_tokens = nn.Embedding(config.vocab_size, config.hidden_size, self.padding_idx)
         self.layers = nn.ModuleList(
             [Qwen2_5_VLMoEDecoderLayer(config, layer_idx) for layer_idx in range(config.num_hidden_layers)]
@@ -346,9 +306,7 @@ class Qwen2_5_VLMoETextModel(Qwen2_5_VLMoEPreTrainedModel):
         self.norm = Qwen2RMSNorm(config.hidden_size, eps=config.rms_norm_eps)
         self.rotary_emb = Qwen2_5_VLRotaryEmbedding(config=config)
         self.has_sliding_layers = "sliding_attention" in self.config.layer_types
-
         self.gradient_checkpointing = False
-        # Initialize weights and apply final processing
         self.post_init()
 
     def get_input_embeddings(self):
@@ -361,15 +319,15 @@ class Qwen2_5_VLMoETextModel(Qwen2_5_VLMoEPreTrainedModel):
         self,
         input_ids: Optional[torch.LongTensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
-        aux_balance_weight: Optional[torch.Tensor] = None, # MoE Flag Input
-        padding_token_mask: Optional[torch.Tensor] = None, # MoE Flag Input
+        aux_balance_weight: Optional[torch.Tensor] = None, 
+        padding_token_mask: Optional[torch.Tensor] = None, 
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[Cache] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
-        output_router_logits_and_topk: Optional[bool] = None, # MoE Flag Input
+        output_router_logits_and_topk: Optional[bool] = None, 
         return_dict: Optional[bool] = None,
         cache_position: Optional[torch.LongTensor] = None,
         **kwargs: Unpack[FlashAttentionKwargs],
@@ -379,7 +337,6 @@ class Qwen2_5_VLMoETextModel(Qwen2_5_VLMoEPreTrainedModel):
             output_hidden_states if output_hidden_states is not None else self.config.output_hidden_states
         )
         use_cache = use_cache if use_cache is not None else self.config.use_cache
-
         return_dict = return_dict if return_dict is not None else self.config.use_return_dict
 
         if (input_ids is None) ^ (inputs_embeds is not None):
@@ -392,7 +349,6 @@ class Qwen2_5_VLMoETextModel(Qwen2_5_VLMoEPreTrainedModel):
                 )
                 use_cache = False
 
-        # torch.jit.trace() doesn't support cache objects in the output
         if use_cache and past_key_values is None and not torch.jit.is_tracing():
             past_key_values = DynamicCache()
 
@@ -405,15 +361,12 @@ class Qwen2_5_VLMoETextModel(Qwen2_5_VLMoEPreTrainedModel):
                 past_seen_tokens, past_seen_tokens + inputs_embeds.shape[1], device=inputs_embeds.device
             )
 
-        # the hard coded `3` is for temporal, height and width.
         if position_ids is None:
             position_ids = cache_position.view(1, 1, -1).expand(3, inputs_embeds.shape[0], -1)
         elif position_ids.dim() == 2:
             position_ids = position_ids[None, ...].expand(3, position_ids.shape[0], -1)
 
-        # It may already have been prepared by e.g. `generate`
         if not isinstance(causal_mask_mapping := attention_mask, dict):
-            # Prepare mask arguments
             mask_kwargs = {
                 "config": self.config,
                 "input_embeds": inputs_embeds,
@@ -422,23 +375,17 @@ class Qwen2_5_VLMoETextModel(Qwen2_5_VLMoEPreTrainedModel):
                 "past_key_values": past_key_values,
                 "position_ids": position_ids,
             }
-            # Create the masks
             causal_mask_mapping = {
                 "full_attention": create_causal_mask(**mask_kwargs),
             }
-            # The sliding window alternating layers are not always activated depending on the config
             if self.has_sliding_layers:
                 causal_mask_mapping["sliding_attention"] = create_sliding_window_causal_mask(**mask_kwargs)
 
         hidden_states = inputs_embeds
-
-        # create position embeddings to be shared across the decoder layers
         position_embeddings = self.rotary_emb(hidden_states, position_ids)
 
-        # decoder layers
         all_hidden_states = () if output_hidden_states else None
         all_self_attns = () if output_attentions else None
-        # MoE Flag
         all_router_logits = () if output_router_logits_and_topk else None
         all_router_top_k = () if output_router_logits_and_topk else None
         all_router_expert_mask = ()
@@ -453,12 +400,12 @@ class Qwen2_5_VLMoETextModel(Qwen2_5_VLMoEPreTrainedModel):
             layer_outputs = decoder_layer(
                 hidden_states,
                 attention_mask=causal_mask_mapping[decoder_layer.attention_type],
-                aux_balance_weight=aux_balance_weight, # MoE Flag
-                padding_token_mask=padding_token_mask, # MoE Flag
+                aux_balance_weight=aux_balance_weight, 
+                padding_token_mask=padding_token_mask, 
                 position_ids=position_ids,
                 past_key_value=past_key_values,
                 output_attentions=output_attentions,
-                output_router_logits_and_topk=output_router_logits_and_topk, # MoE Flag
+                output_router_logits_and_topk=output_router_logits_and_topk, 
                 use_cache=use_cache,
                 cache_position=cache_position,
                 position_embeddings=position_embeddings,
@@ -470,7 +417,6 @@ class Qwen2_5_VLMoETextModel(Qwen2_5_VLMoEPreTrainedModel):
             if output_attentions:
                 all_self_attns += (layer_outputs[1],)
 
-            # MoE Flag - return
             if output_router_logits_and_topk:
                 all_router_logits += (layer_outputs[-5],)
                 all_router_top_k += (layer_outputs[-4],)
@@ -480,14 +426,22 @@ class Qwen2_5_VLMoETextModel(Qwen2_5_VLMoEPreTrainedModel):
 
         hidden_states = self.norm(hidden_states)
 
-        # add hidden states from the last decoder layer
         if output_hidden_states:
             all_hidden_states += (hidden_states,)
 
-        # MoE Flag - return
         if not return_dict:
             return tuple(
-                v for v in [hidden_states, past_key_values, all_hidden_states, all_self_attns, all_router_logits, all_router_top_k, all_router_expert_mask, all_router_weight, all_aux_loss] if v is not None
+                v for v in [
+                    hidden_states, 
+                    past_key_values, 
+                    all_hidden_states, 
+                    all_self_attns, 
+                    all_router_logits, 
+                    all_router_top_k, 
+                    all_router_expert_mask, 
+                    all_router_weight, 
+                    all_aux_loss] 
+                    if v is not None
             )
         return BaseModelOutputWithPast(
             last_hidden_state=hidden_states,
@@ -515,31 +469,21 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         super().__init__(config)
         self.visual = Qwen2_5_VisionTransformerPretrainedModel._from_config(config.vision_config, attn_implementation=config._attn_implementation)
         self.language_model = Qwen2_5_VLMoETextModel._from_config(config.text_config)
-        self.rope_deltas = None  # cache rope_deltas here
-        
+        self.rope_deltas = None 
         self.lm_head = nn.Linear(config.text_config.hidden_size, config.text_config.vocab_size, bias=False)
-
-        # MoE Flag
         self.l_aux_weight = config.text_config.l_aux_weight
         self.min_l_aux_weight = config.text_config.min_l_aux_weight
         self.l_aux_weight_decay_steps = max(1, config.text_config.l_aux_weight_decay_steps)
-        
-        # Log Flag
         self.input_max_length = 0
         self.training_steps = 0
-
-        # Codec Flag
         self.num_channels = config.codec_channels
         self.codec_vocab_size = config.codec_vocab_size
-        self.codec_embed_tokens = nn.ModuleList([nn.Embedding(self.codec_vocab_size, config.text_config.hidden_size) for embed_idx in range(self.num_channels)])
-
+        self.codec_embed_tokens = nn.ModuleList(
+            [nn.Embedding(self.codec_vocab_size, config.text_config.hidden_size) for embed_idx in range(self.num_channels)])
         self.codec_placeholder_value = config.codec_placeholder_value
         self.codec_head = nn.Linear(config.text_config.hidden_size, self.num_channels * self.codec_vocab_size, bias=False)
-
-        # Initialize weights and apply final processing
         self.post_init()
 
-    # MoE Flag
     @property
     def cur_aux_weight(self):
         if self.training_steps >= self.l_aux_weight_decay_steps:
@@ -572,9 +516,6 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         second_per_grid_ts: Optional[torch.Tensor] = None,
         attention_mask: Optional[torch.Tensor] = None,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """
-        copy from qwen2_5_vl
-        """
         spatial_merge_size = self.config.vision_config.spatial_merge_size
         image_token_id = self.config.image_token_id
         video_token_id = self.config.video_token_id
@@ -649,8 +590,6 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
 
                     range_tensor = torch.arange(llm_grid_t).view(-1, 1)
                     expanded_range = range_tensor.expand(-1, llm_grid_h * llm_grid_w)
-
-                    ## normalize type, send to device.
                     second_per_grid_t = torch.as_tensor(
                         second_per_grid_t, dtype=range_tensor.dtype, device=range_tensor.device
                     )
@@ -697,9 +636,6 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
             return position_ids, mrope_position_deltas
 
     def get_video_features(self, pixel_values_videos: torch.FloatTensor, video_grid_thw: Optional[torch.LongTensor] = None):
-        """
-        copy from qwen2_5_vl
-        """
         pixel_values_videos = pixel_values_videos.type(self.visual.dtype)
         video_embeds = self.visual(pixel_values_videos, grid_thw=video_grid_thw)
         split_sizes = (video_grid_thw.prod(-1) // self.visual.spatial_merge_size**2).tolist()
@@ -707,9 +643,6 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         return video_embeds
 
     def get_image_features(self, pixel_values: torch.FloatTensor, image_grid_thw: Optional[torch.LongTensor] = None):
-        """
-        copy from qwen2_5_vl
-        """
         pixel_values = pixel_values.type(self.visual.dtype)
         image_embeds = self.visual(pixel_values, grid_thw=image_grid_thw)
         split_sizes = (image_grid_thw.prod(-1) // self.visual.spatial_merge_size**2).tolist()
@@ -718,9 +651,6 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
 
 
     def codec_embedding(self, codec_input_ids):
-        """
-        codec_input_ids: (B, S, C)
-        """
         x = None
         for i in range(self.num_channels):
             channel_tokens = codec_input_ids[..., i]
@@ -746,22 +676,18 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         position_ids: Optional[torch.LongTensor] = None,
         past_key_values: Optional[List[torch.FloatTensor]] = None,
         inputs_embeds: Optional[torch.FloatTensor] = None,
-
         labels: Optional[torch.LongTensor] = None,
         codec_labels: Optional[torch.LongTensor] = None,
         aux_balance_weight: Optional[torch.LongTensor] = None,
         padding_token_mask: Optional[torch.Tensor] = None,
-        
         use_cache: Optional[bool] = None,
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         output_router_logits_and_topk: Optional[bool] = None,
-
         pixel_values: Optional[torch.Tensor] = None,
         pixel_values_videos: Optional[torch.FloatTensor] = None,
         image_grid_thw: Optional[torch.LongTensor] = None,
         video_grid_thw: Optional[torch.LongTensor] = None,
-
         rope_deltas: Optional[torch.LongTensor] = None,
         cache_position: Optional[torch.LongTensor] = None,
         second_per_grid_ts: Optional[torch.Tensor] = None,
@@ -830,11 +756,6 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
                 attention_mask_tensor = torch.diagonal(attention_mask_tensor[:, 0], dim1=1, dim2=2)
                 attention_mask_tensor = attention_mask_tensor / torch.finfo(attention_mask_tensor.dtype).min
                 attention_mask_tensor = (1.0 - attention_mask_tensor).int()
-
-            # Calculate RoPE index once per generation in the pre-fill stage only.
-            # When compiling, we can't check tensor values thus we check only input length
-            # It is safe to assume that `length!=1` means we're in pre-fill because compiled
-            # models currently cannot do asssisted decoding
             prefill_compiled_stage = is_torchdynamo_compiling() and (
                 (input_ids is not None and input_ids.shape[1] != 1)
                 or (inputs_embeds is not None and inputs_embeds.shape[1] != 1)
@@ -852,7 +773,7 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
                     attention_mask=attention_mask_tensor,
                 )
                 self.rope_deltas = rope_deltas
-            # then use the prev pre-calculated rope-deltas to get the correct position ids
+
             else:
                 batch_size, seq_length, _ = inputs_embeds.shape
                 delta = (
@@ -862,18 +783,15 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
                 )
                 position_ids = torch.arange(seq_length, device=inputs_embeds.device)
                 position_ids = position_ids.view(1, -1).expand(batch_size, -1)
-                if cache_position is not None:  # otherwise `deltas` is an int `0`
+                if cache_position is not None:  
                     delta = delta.repeat_interleave(batch_size // delta.shape[0], dim=0)
                 position_ids = position_ids.add(delta)
                 position_ids = position_ids.unsqueeze(0).expand(3, -1, -1)
 
-        # if attention_mask is not None and aux_balance_weight is not None:
         if aux_balance_weight is not None:
             aux_balance_weight = attention_mask * aux_balance_weight
 
-        # if attention_mask is not None and padding_token_mask is None:
         if padding_token_mask is None:
-            
             padding_token_mask = attention_mask.bool()
 
         outputs = self.language_model(
@@ -895,7 +813,7 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
 
         hidden_states = outputs[0]
         logits = self.lm_head(hidden_states).float()
-        codec_logits = self.codec_head(hidden_states).float()  # (Batch size, Seq length, Channel * Vocab size of codec)
+        codec_logits = self.codec_head(hidden_states).float()  
         codec_logits = codec_logits.view((logits.shape[0], logits.shape[1], self.num_channels, self.codec_vocab_size))
 
         loss = None
@@ -905,14 +823,12 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
             all_aux_loss = torch.mean(torch.cat([l.unsqueeze(0) for l in all_aux_loss], dim=0))
             aux_loss = self.cur_aux_weight * all_aux_loss
             self.training_steps += 1
-
-            # codec loss
             codec_loss = None
+
             if codec_labels is not None:
                 for i in range(self.num_channels):
                     channel_logits = codec_logits[:, :, i].float()
                     channel_labels = codec_labels[:, :, i]
-
                     shift_channel_logits = channel_logits[..., :-1, :].contiguous()
                     shift_channel_labels = channel_labels[..., 1:].contiguous()
 
@@ -922,44 +838,13 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
                     loss_fct = CrossEntropyLoss()
                     shift_channel_logits = shift_channel_logits.view(-1, self.codec_vocab_size)
                     shift_channel_labels = shift_channel_labels.view(-1)
-
                     shift_channel_labels = shift_channel_labels.to(shift_channel_logits.device)
                     channel_loss = loss_fct(shift_channel_logits, shift_channel_labels)
-
-                    # loss_weight = 3 if i == 0 else 1
-                    # channel_loss = channel_loss * loss_weight
-
                     codec_loss = channel_loss if codec_loss is None else codec_loss + channel_loss
-
-                # codec_loss = codec_loss / self.num_channels
-
-            # # Upcast to float if we need to compute the loss to avoid potential precision issues
-            # logits = logits.float()
-            # # Shift so that tokens < n predict n
-            # shift_logits = logits[..., :-1, :].contiguous()
-            # shift_labels = labels[..., 1:].contiguous()
-            # # Flatten the tokens
-            # loss_fct = CrossEntropyLoss(reduction="none")
-            # shift_logits = shift_logits.view(-1, self.config.vocab_size)
-            # shift_labels = shift_labels.view(-1)
-            # # Enable model parallelism
-            # shift_labels = shift_labels.to(shift_logits.device)
-            # loss = loss_fct(shift_logits, shift_labels)
-
-            # loss_mask = ((shift_labels != -100) & (shift_labels != self.codec_placeholder_value)).long()
-            # loss = loss * loss_mask
-            # if loss_mask.sum() < 1:
-            #     loss = 0
-            # else:
-            #     loss = loss.sum() / loss_mask.sum()
-
-            # if codec_loss is not None:
-            #     loss = loss + codec_loss
 
             loss = codec_loss + aux_loss
 
             import wandb
-
             self.input_max_length = max(self.input_max_length, input_ids.shape[1])
 
             if wandb.run is not None:
@@ -970,7 +855,6 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
             output = (logits,) + outputs[1:]
             return (loss,) + output if loss is not None else output
 
-        # MoE Flag
         return MoEQwen2_5VLCausalLMOutputWithPast(
             loss=loss,
             logits=logits,
@@ -983,8 +867,6 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
             all_router_weight=outputs.all_router_weight,
             aux_balance_loss=all_aux_loss,
         )
-
-        # Copied from transformers.models.llama.modeling_llama.LlamaForCausalLM.prepare_inputs_for_generation
 
     @staticmethod
     def _sample_next_token(
@@ -1045,74 +927,22 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         use_cache=True,
         enable_eos=True,
     ) -> torch.Tensor:
-        """Performs a single step of the decoder inference.
-
-        Takes the tokens from the previous step, runs them through the decoder
-        (for both conditional and unconditional paths), applies classifier-free
-        guidance (CFG), samples the next token using temperature, top-p, and top-k
-        sampling, and applies constraints (e.g., preventing EOS in certain channels).
-
-        Args:
-            tokens_Bx1xC: The input tokens for the current step, shape [2*B, 1, C].
-                         Repeated for CFG (unconditional and conditional).
-            dec_state: The current state of the decoder (KV caches, etc.).
-            cfg_scale: The scale factor for classifier-free guidance.
-            temperature: The temperature for sampling.
-            top_p: The cumulative probability threshold for top-p sampling.
-            top_k: The number of top logits to consider for top-k sampling.
-
-        Returns:
-            torch.Tensor: The sampled next tokens for each item in the batch,
-                          shape [B, C].
-        """
         B = tokens_Bx1xC.shape[0]
         audio_eos_value = self.config.codec_eos_value
-
-        # -------------- forward for next token logits ---------------
-
-        attention_mask = model_kwargs["attention_mask"]  # complete attention mask
-        cache_position = model_kwargs["cache_position"]  # position at the current location
+        attention_mask = model_kwargs["attention_mask"]  
+        cache_position = model_kwargs["cache_position"]  
         past_key_values = model_kwargs["past_key_values"]
         input_ids = model_kwargs["input_ids"]
         codec_input_ids = model_kwargs["codec_input_ids"]
-
-        # copy from prepare_inputs_for_generation() of Qwen2
         position_ids = attention_mask.long().cumsum(-1) - 1
         position_ids.masked_fill_(attention_mask == 0, 1)
         if past_key_values:
             position_ids = position_ids[:, -tokens_Bx1xC.shape[1] :]
-            # This `clone` call is needed to avoid recapturing cuda graphs with `torch.compile`'s  `mode="reduce-overhead`, as otherwise the input `position_ids` would have various stride during the decoding. Here, simply using `.contiguous()` is not sufficient as in the batch size = 1 case, `position_ids` is already contiguous but with varying stride which retriggers a capture.
             position_ids = position_ids.clone(memory_format=torch.contiguous_format)
 
-        tokens_Bx1xC = tokens_Bx1xC.repeat_interleave(2, dim=0)  # Repeat for CFG
+        tokens_Bx1xC = tokens_Bx1xC.repeat_interleave(2, dim=0)
         codec_input_ids = torch.cat((codec_input_ids, tokens_Bx1xC), dim=1) if codec_input_ids is not None else tokens_Bx1xC.clone()
         input_ids = torch.cat((input_ids, torch.ones(input_ids.shape[0], 1).to(input_ids) * self.codec_placeholder_value), dim=-1)
-
-        # if labels_Bx1xC is not None:
-        #     codec_labels = model_kwargs["codec_labels"]
-        #     labels = model_kwargs["labels"]
-        #     new_labels_Bx1xC = labels_Bx1xC.clone()
-        #     new_labels_Bx1xC[new_labels_Bx1xC > audio_eos_value] = -100
-        #     tmp_labels_Bx1xC = new_labels_Bx1xC[:, :, 1:].clone()
-        #     tmp_labels_Bx1xC[tmp_labels_Bx1xC >= audio_eos_value] = -100
-        #     new_labels_Bx1xC[:, :, 1:] = tmp_labels_Bx1xC
-
-        #     codec_labels = torch.cat((codec_labels, new_labels_Bx1xC), dim=1)
-        #     labels = torch.cat((labels, torch.ones((labels.shape[0], 1), device=labels.device, dtype=labels.dtype) * -100), dim=1)
-
-        #     batch_codec_input_ids = codec_input_ids[1::2,].contiguous().view(-1, self.num_channels)
-        #     outputs = self.forward(
-        #         input_ids=input_ids[1::2,],
-        #         codec_input_ids=batch_codec_input_ids,
-        #         attention_mask=attention_mask[1::2,],
-        #         position_ids=attention_mask[1::2,].long().cumsum(-1) - 1,
-        #         labels=labels,
-        #         codec_labels=codec_labels,
-        #     )
-        #     print(outputs.loss)
-
-        #     model_kwargs["codec_labels"] = codec_labels
-        #     model_kwargs["labels"] = labels
 
         if use_cache:
             codec_input_embeds = self.codec_embedding(tokens_Bx1xC)
@@ -1147,46 +977,39 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
             )
 
         last_hidden_state = outputs.last_hidden_state
-        codec_logits = self.codec_head(last_hidden_state).float()  # (Batch size, Seq length, Channel * Vocab size of codec)
+        codec_logits = self.codec_head(last_hidden_state).float()
         codec_logits = codec_logits.view((codec_logits.shape[0], codec_logits.shape[1], self.num_channels, self.codec_vocab_size))
-
-        # ----------------- update model kwargs for next decode step -------------------
-
         model_kwargs["past_key_values"] = outputs.past_key_values
         attention_mask = model_kwargs["attention_mask"]
         model_kwargs["attention_mask"] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
-        model_kwargs["cache_position"] = model_kwargs["cache_position"][-1:] + 1  # num_new_tokens = 1
+        model_kwargs["cache_position"] = model_kwargs["cache_position"][-1:] + 1 
         model_kwargs["input_ids"] = input_ids
         model_kwargs["codec_input_ids"] = codec_input_ids
-
-        # ----------------- cfg ------------------
 
         logits_Bx1xCxV = codec_logits[: , -1:].clone()
         logits_last_2BxCxV = logits_Bx1xCxV[:, -1]
         logits_last_Bx2xCxV = logits_last_2BxCxV.view(B, 2, *logits_last_2BxCxV.shape[1:])
         if cfg_scale != 0:
-            uncond_logits_BxCxV = logits_last_Bx2xCxV[:, 0, :, :]  # Shape [B, C, V]
-            cond_logits_BxCxV = logits_last_Bx2xCxV[:, 1, :, :]  # Shape [B, C, V]
+            uncond_logits_BxCxV = logits_last_Bx2xCxV[:, 0, :, :] 
+            cond_logits_BxCxV = logits_last_Bx2xCxV[:, 1, :, :]  
             logits_BxCxV = cond_logits_BxCxV + cfg_scale * (cond_logits_BxCxV - uncond_logits_BxCxV)
         else:
-            logits_BxCxV = logits_last_Bx2xCxV[:, 1, :, :]  # Shape [B, C, V]
-
-        # ----------------- setting eos with rule ------------------
+            logits_BxCxV = logits_last_Bx2xCxV[:, 1, :, :]  
 
         if enable_eos:
             logits_BxCxV[:, :, audio_eos_value + 1 :] = torch.full_like(
                 logits_BxCxV[:, :, audio_eos_value + 1 :],
                 fill_value=-torch.inf,
-            )  # mask bos and pad
+            )  
             logits_BxCxV[:, 1:, audio_eos_value:] = torch.full_like(
                 logits_BxCxV[:, 1:, audio_eos_value:],
                 fill_value=-torch.inf,
-            )  # mask eos for channel > 1
+            ) 
         else:
             logits_BxCxV[:, :, audio_eos_value:] = torch.full_like(
                 logits_BxCxV[:, :, audio_eos_value:],
                 fill_value=-torch.inf,
-            )  # mask eos
+            )  
 
 
         logits_BxCxV[:, 0, audio_eos_value] *= torch.tensor(eos_prob_mul_factor, device=self.device)
@@ -1220,30 +1043,6 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
 
                 codec_loss = channel_loss if codec_loss is None else codec_loss + channel_loss
 
-            # codec_loss = None
-            # if codec_labels is not None:
-            #     for i in range(self.num_channels):
-            #         channel_logits = codec_logits[1::2, :, i].float()
-            #         channel_labels = codec_labels[:, 1:, i]
-
-            #         shift_channel_logits = channel_logits.contiguous()
-            #         shift_channel_labels = channel_labels.contiguous()
-
-            #         if i!= 0 and (shift_channel_labels != -100).sum() == 0:
-            #             continue
-
-            #         loss_fct = CrossEntropyLoss()
-            #         shift_channel_logits = shift_channel_logits.view(-1, self.codec_vocab_size)
-            #         shift_channel_labels = shift_channel_labels.view(-1)
-
-            #         shift_channel_labels = shift_channel_labels.to(shift_channel_logits.device)
-            #         channel_loss = loss_fct(shift_channel_logits, shift_channel_labels)
-
-            #         loss_weight = 3 if i == 0 else 1
-            #         channel_loss = channel_loss * loss_weight
-
-            #         codec_loss = channel_loss if codec_loss is None else codec_loss + channel_loss
-
             print(f"golden loss: {codec_loss}")
 
             model_kwargs["codec_labels"] = codec_labels
@@ -1251,9 +1050,6 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
 
 
         flat_logits_BCxV = logits_BxCxV.reshape(B * self.num_channels, -1)
-
-        # ------------------ sampling ----------------------
-
         if do_sample:
             pred_BC = self._sample_next_token(
                 flat_logits_BCxV.float(),
@@ -1293,27 +1089,16 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         delay_pattern = self.config.codec_delay_pattern
         max_delay_pattern = max(delay_pattern)
         delay_pattern_Cx = torch.tensor(delay_pattern, device=self.device, dtype=torch.long)
-
         dec_step = min(dec_output.prefill_steps) - 1
-
         eos_detected_Bx = torch.zeros((batch_size,), dtype=torch.bool, device=self.device)
         eos_countdown_Bx = torch.full((batch_size,), -1, dtype=torch.long, device=self.device)
         finished_step_Bx = torch.full((batch_size,), -1, dtype=torch.long, device=self.device)
-
         bos_over = False
-
-        # --------- init model kwargs (reference transforerms generation utils) ---------
-
         model_kwargs = dict(attention_mask=attention_mask, use_cache=True)
         model_kwargs["past_key_values"] = DynamicCache()
         model_kwargs["cache_position"] = torch.ones_like(input_ids[0, :], dtype=torch.int64).cumsum(0) - 1
-
-        # --------- first forward for input ---------
-
-        attention_mask = model_kwargs["attention_mask"]  # 完整的attention mask
+        attention_mask = model_kwargs["attention_mask"]  
         past_key_values = model_kwargs["past_key_values"]
-
-        # copy from prepare_inputs_for_generation() of Qwen2
         position_ids = attention_mask.long().cumsum(-1) - 1
         position_ids.masked_fill_(attention_mask == 0, 1)
         cache_position = torch.arange(0, input_ids.shape[-1], device=input_ids.device)
@@ -1344,9 +1129,7 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         model_kwargs["past_key_values"] = outputs.past_key_values
         attention_mask = model_kwargs["attention_mask"]
         model_kwargs["attention_mask"] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
-        model_kwargs["cache_position"] = model_kwargs["cache_position"][-1:] + 1  # num_new_tokens = 1
-
-        # --------------- start generate ---------------------
+        model_kwargs["cache_position"] = model_kwargs["cache_position"][-1:] + 1 
 
         while dec_step < max_tokens:
             if (eos_countdown_Bx == 0).all():
@@ -1398,23 +1181,17 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
                 pred_BxC[padding_mask_Bx] = pred_active_BxC
                 eos_countdown_Bx[padding_mask_Bx] -= 1
 
-            # --- Update BOS flag (Original) ---
             if not bos_over:
                 bos_over = all(current_step_idx - prefill_step >= max_delay_pattern for prefill_step in dec_output.prefill_steps)
-
             dec_output.update_one(pred_BxC, current_step_idx, not bos_over)
-
             dec_step += 1
 
-        # --- Finalize and Extract Output ---
         final_step = dec_step + 1
-
         finished_step_Bx[finished_step_Bx == -1] = final_step - max_delay_pattern
 
         prefill_steps_tensor = torch.tensor(dec_output.prefill_steps, device=self.device)
         lengths_Bx = finished_step_Bx - prefill_steps_tensor
         lengths_Bx = torch.clamp(lengths_Bx, min=0)
-
         max_len = lengths_Bx.max().item() + max_delay_pattern
 
         if max_len > 0:
@@ -1444,44 +1221,3 @@ AutoModelForCausalLM.register(Qwen2_5_VLMoETextConfig, Qwen2_5_VLMoETextModel)
 
 AutoConfig.register("uni_audio_rvq_qwen2_5vl_moe", UniAudioRVQQwen2_5VLMoEConfig)
 AutoModelForCausalLM.register(UniAudioRVQQwen2_5VLMoEConfig, UniAudioRVQQwen2_5VLMoEForConditionalGeneration)
-
-"""
-from transformers import AutoProcessor, AutoTokenizer, LogitsProcessor, LogitsProcessorList
-tokenizer = AutoTokenizer.from_pretrained("/workspace/40103/orizyliu/40141/orizyliu/A_Sonic/A_workspace/Outputs/uni_audio_dac/3B_UniAudio_MoE_Pretraining_npu/checkpoint-40000")
-
-import sys
-sys.path.append("/workspace/40103/orizyliu/A_Sonic/A_workspace/Code/uni_audio_token/training")
-from dataclasses import dataclass, field
-
-@dataclass
-class DataArguments:
-    data_path: str = field(default=None, metadata={"help": "Path to the training data."})
-    data_type: str = field(default=None, metadata={"help": "Path to the training data."})
-    random_skip_data_num: int = field(default=0, metadata={"help": "Random skip data num."})
-    random_skip_data_log: str = field(default=None, metadata={"help": "Random skip data num."})
-
-data_args = DataArguments
-data_args.data_path = "/workspace/40103/orizyliu/A_Sonic/A_workspace/Data/music_clips/dac_datasets/instrumental_music_P2-recaption_all-and_musiccap-final_check"
-data_args.codec_delay_pattern = [0,8,9,10,11,12,13,14,15,16,17,18]
-data_args.codec_channels = 12
-data_args.codec_eos_value = 1024
-data_args.codec_pad_value = 1025
-data_args.codec_bos_value = 1026
-data_args.codec_start_token = "<|AUDIO_START|>"
-data_args.codec_end_token = "<|AUDIO_END|>"
-data_args.codec_placeholder_token = "<|AUDIO_PLACEHOLDER|>"
-
-from DataLoaders.UniAudioRVQDataLoader import DataCollatorForSupervisedDataset, LazySupervisedDataset
-
-train_dataset = LazySupervisedDataset(
-        tokenizer=tokenizer,
-        data_path=data_args.data_path,
-        data_args=data_args,
-    )
-
-import datasets
-data = datasets.load_from_disk("/workspace/40103/orizyliu/A_Sonic/A_workspace/Data/music_clips/dac_datasets/instrumental_music_P2-recaption_all-and_musiccap-final_check")
-data = data.shuffle(233)
-data = data.select(range(10))
-train_dataset.data = data
-"""

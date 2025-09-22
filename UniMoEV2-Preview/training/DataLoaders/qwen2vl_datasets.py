@@ -58,19 +58,6 @@ def floor_by_factor(number: int, factor: int) -> int:
 
 
 def smart_resize(height: int, width: int, factor: int = IMAGE_FACTOR, min_pixels: int = MIN_PIXELS, max_pixels: int = MAX_PIXELS) -> tuple[int, int]:
-    """
-    Rescales the image so that the following conditions are met:
-
-    1. Both dimensions (height and width) are divisible by 'factor'.
-
-    2. The total number of pixels is within the range ['min_pixels', 'max_pixels'].
-
-    3. The aspect ratio of the image is maintained as closely as possible.
-    """
-    # if max(height, width) / min(height, width) > MAX_RATIO:
-    #     raise ValueError(
-    #         f"absolute aspect ratio must be smaller than {MAX_RATIO}, got {max(height, width) / min(height, width)}"
-    #     )
     h_bar = max(factor, round_by_factor(height, factor))
     w_bar = max(factor, round_by_factor(width, factor))
     if h_bar * w_bar > max_pixels:
@@ -113,36 +100,11 @@ class LazySupervisedDataset(Dataset):
     def __len__(self):
         return len(self.data)
 
-    # @property
-    # def lengths(self):
-    #     length_list = []
-    #     for sample in self.list_data_dict:
-    #         img_tokens = IMG_TOKEN_LENGTH if 'image' in sample else 0
-    #         length_list.append(sum(len(conv['value'].split()) for conv in sample['conversations']) + img_tokens)
-    #     return length_list
-    #
-    # @property
-    # def modality_lengths(self):
-    #     length_list = []
-    #     for sample in self.list_data_dict:
-    #         cur_len = sum(len(conv['value'].split()) for conv in sample['conversations'])
-    #         cur_len = cur_len if 'image' in sample else -cur_len
-    #         length_list.append(cur_len)
-    #     return length_list
-
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
-        """
-        Returns:
-            input_ids: torch.LongTensor = None,
-            pixel_values: torch.FloatTensor = None,
-            image_grid_thw: torch.FloatTensor = None,
-            labels: torch.FloatTensor = None,
-        """
         sources = self.data[i]
         image_path = sources.get("image_path")
-
         has_image = image_path is not None
-        # 图片预处理和文本格式化
+
         if has_image:
             image_path = os.path.join(self.image_root, image_path) if self.image_root else image_path
             raw_image = Image.open(image_path).convert("RGB")
@@ -162,9 +124,9 @@ class LazySupervisedDataset(Dataset):
                 images=image,
                 videos=None,
                 return_tensors="pt",
-                do_resize=False,  # 已经resize过了
-                do_rescale=None,  # 默认
-                do_normalize=None,  # 默认
+                do_resize=False,  
+                do_rescale=None,  
+                do_normalize=None,  
             )
             pixel_values = image_inputs["pixel_values"]
             image_grid_thw = image_inputs["image_grid_thw"]
@@ -196,7 +158,6 @@ class LazySupervisedDataset(Dataset):
             adding_sys_in_query=False,
         )
 
-        # image exist in the data
         if has_image:
             data_dict["pixel_values"] = pixel_values
             data_dict["image_grid_thw"] = image_grid_thw
@@ -221,13 +182,6 @@ class DataCollatorForSupervisedDataset(object):
 
         input_ids = input_ids[:, : self.tokenizer.model_max_length]
         labels = labels[:, : self.tokenizer.model_max_length]
-
-        # if input_ids.shape[1] < self.tokenizer.model_max_length:
-        #    input_ids = torch.cat(
-        #        (input_ids, torch.ones((input_ids.shape[0], self.tokenizer.model_max_length - input_ids.shape[1]), device=input_ids.device, dtype=input_ids.dtype) * self.tokenizer.pad_token_id), dim=1
-        #    )
-        #    labels = torch.cat((labels, torch.ones((labels.shape[0], self.tokenizer.model_max_length - labels.shape[1]), device=labels.device, dtype=labels.dtype) * IGNORE_INDEX), dim=1)
-        # assert input_ids.shape[1] == labels.shape[1] == self.tokenizer.model_max_length
         batch = dict(
             input_ids=input_ids,
             labels=labels,

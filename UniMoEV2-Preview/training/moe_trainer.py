@@ -260,7 +260,6 @@ def _is_peft_model(model):
 
 
 def _get_fsdp_ckpt_kwargs():
-    # TODO: @AjayP13, @younesbelkada replace this check with version check at the next `accelerate` release
     if is_accelerate_available() and "adapter_only" in list(inspect.signature(save_fsdp_model).parameters):
         return {"adapter_only": True}
     else:
@@ -269,7 +268,7 @@ def _get_fsdp_ckpt_kwargs():
 
 if TYPE_CHECKING:
     import optuna
-
+    
     if is_datasets_available():
         import datasets
 
@@ -289,12 +288,6 @@ FSDP_MODEL_NAME = "pytorch_model_fsdp"
 class MoETrainer(Trainer):
 
     def create_optimizer(self):
-        """
-        Setup the optimizer.
-
-        We provide a reasonable default that works well. If you want to use something else, you can pass a tuple in the
-        Trainer's init through `optimizers`, or subclass and override this method in a subclass.
-        """
         opt_model = self.model_wrapped if is_sagemaker_mp_enabled() else self.model
 
         if self.optimizer is None:
@@ -305,7 +298,6 @@ class MoETrainer(Trainer):
                         p for n, p in opt_model.named_parameters() if (n in decay_parameters and p.requires_grad)
                     ],
                     "weight_decay": self.args.weight_decay,
-                    # moe trainer flag
                     "name": "decay_parameters",
                     "params_source": [
                         n for n, p in opt_model.named_parameters() if (n in decay_parameters and p.requires_grad)
@@ -316,7 +308,6 @@ class MoETrainer(Trainer):
                         p for n, p in opt_model.named_parameters() if (n not in decay_parameters and p.requires_grad)
                     ],
                     "weight_decay": 0.0,
-                    # moe trainer flag
                     "name": "no_decay_parameters",
                     "params_source": [
                         n for n, p in opt_model.named_parameters() if (n not in decay_parameters and p.requires_grad)
@@ -326,22 +317,13 @@ class MoETrainer(Trainer):
 
             optimizer_cls, optimizer_kwargs = self.get_optimizer_cls_and_kwargs(self.args, opt_model)
 
-            # Overwrite `params` in case it's created by `get_optimizer_cls_and_kwargs`
-            # e.g. for GaLore optimizer.
             if "params" in optimizer_kwargs:
                 optimizer_grouped_parameters = optimizer_kwargs.pop("params")
-
-            # Overwrite `model` in case it's created by `get_optimizer_cls_and_kwargs`
-            # e.g. for LOMO optimizer.
             if "model" in optimizer_kwargs:
                 optimizer_grouped_parameters = optimizer_kwargs.pop("model")
-
-            # For layer-wise dummy optimizers we overwrite optimizer_grouped_parameters with `optimizer_dict`
-            # to avoid arguments conflicts.
             if "optimizer_dict" in optimizer_kwargs:
                 optimizer_grouped_parameters = optimizer_kwargs.pop("optimizer_dict")
 
-            # MOE TRAINER FLAG
             from deepspeed.moe.utils import split_params_into_different_moe_groups_for_optimizer, is_moe_param
             if hasattr(self, "has_moe_layers") and self.has_moe_layers:
                 logger.warning("using MoE")
@@ -382,24 +364,19 @@ class MoETrainer(Trainer):
                 (self.model_wrapped,) = release_memory(self.model_wrapped)
                 self.model_wrapped = self.model
 
-                # Check for DeepSpeed *after* the intial pass and modify the config
                 if self.is_deepspeed_enabled:
-                    # Temporarily unset `self.args.train_batch_size`
                     original_bs = self.args.per_device_train_batch_size
                     self.args.per_device_train_batch_size = self._train_batch_size // max(1, self.args.n_gpu)
                     self.propagate_args_to_deepspeed(True)
                     self.args.per_device_train_batch_size = original_bs
             self.state.train_batch_size = self._train_batch_size
         logger.debug(f"Currently training with a batch size of: {self._train_batch_size}")
-        # Data loader and number of training steps
+
+
         train_dataloader = self.get_train_dataloader()
         if self.is_fsdp_xla_v2_enabled:
             train_dataloader = tpu_spmd_dataloader(train_dataloader)
 
-        # Setting up training control variables:
-        # number of training epochs: num_train_epochs
-        # number of training steps per epoch: num_update_steps_per_epoch
-        # total number of training steps to execute: max_steps
         total_train_batch_size = self._train_batch_size * args.gradient_accumulation_steps * args.world_size
 
         len_dataloader = None
@@ -414,8 +391,6 @@ class MoETrainer(Trainer):
                 num_train_epochs = args.max_steps // num_update_steps_per_epoch + int(
                     args.max_steps % num_update_steps_per_epoch > 0
                 )
-                # May be slightly incorrect if the last batch in the training dataloader has a smaller size but it's
-                # the best we can do.
                 num_train_samples = args.max_steps * total_train_batch_size
                 if args.include_tokens_per_second:
                     num_train_tokens = (
@@ -427,9 +402,8 @@ class MoETrainer(Trainer):
                 num_train_samples = self.num_examples(train_dataloader) * args.num_train_epochs
                 if args.include_tokens_per_second:
                     num_train_tokens = self.num_tokens(train_dataloader) * args.num_train_epochs
-        elif args.max_steps > 0:  # Rely on max_steps when dataloader does not have a working size
+        elif args.max_steps > 0:  
             max_steps = args.max_steps
-            # Setting a very large number of epochs so we go as many times as necessary over the iterator.
             num_train_epochs = sys.maxsize
             num_update_steps_per_epoch = max_steps
             num_examples = total_train_batch_size * args.max_steps
@@ -444,24 +418,21 @@ class MoETrainer(Trainer):
 
         if DebugOption.UNDERFLOW_OVERFLOW in self.args.debug:
             if self.args.n_gpu > 1:
-                # nn.DataParallel(model) replicates the model, creating new variables and module
-                # references registered here no longer work on other gpus, breaking the module
                 raise ValueError(
                     "Currently --debug underflow_overflow is not supported under DP. Please use DDP"
                     " (torchrun or torch.distributed.launch (deprecated))."
                 )
             else:
-                debug_overflow = DebugUnderflowOverflow(self.model)  # noqa
+                debug_overflow = DebugUnderflowOverflow(self.model) 
 
         delay_optimizer_creation = is_sagemaker_mp_enabled() or self.is_fsdp_xla_enabled or self.is_fsdp_enabled
 
-        # We need to reset the scheduler, as its parameters may be different on subsequent calls
+
         if self._created_lr_scheduler:
             self.lr_scheduler = None
             self._created_lr_scheduler = False
 
         if self.is_deepspeed_enabled:
-            # MOE TRAINER FLAG
             from deepspeed.moe.utils import has_moe_layers
             self.has_moe_layers = has_moe_layers(self.model)[0]
             if self.has_moe_layers:
@@ -484,7 +455,6 @@ class MoETrainer(Trainer):
         self.state.is_hyper_param_search = trial is not None
         self.state.train_batch_size = self._train_batch_size
 
-        # Compute absolute values for logging, eval, and save if given as ratio
         if args.logging_steps is not None:
             if args.logging_steps < 1:
                 self.state.logging_steps = math.ceil(max_steps * args.logging_steps)
@@ -501,22 +471,11 @@ class MoETrainer(Trainer):
             else:
                 self.state.save_steps = args.save_steps
 
-        # Activate gradient checkpointing if needed
         if args.gradient_checkpointing:
-            # 4.45.1 flag
             self.model.gradient_checkpointing_enable(gradient_checkpointing_kwargs=args.gradient_checkpointing_kwargs)
-            # if args.gradient_checkpointing_kwargs is None:
-            #     gradient_checkpointing_kwargs = {}
-            # else:
-            #     gradient_checkpointing_kwargs = args.gradient_checkpointing_kwargs
-
-            # self.model.gradient_checkpointing_enable(gradient_checkpointing_kwargs=gradient_checkpointing_kwargs)
 
         model = self._wrap_model(self.model_wrapped)
 
-        # as the model is wrapped, don't use `accelerator.prepare`
-        # this is for unhandled cases such as
-        # FSDP-XLA, SageMaker MP/DP, DataParallel, IPEX
         use_accelerator_prepare = True if model is self.model else False
 
         if delay_optimizer_creation:
@@ -525,7 +484,6 @@ class MoETrainer(Trainer):
                 self.model = self.accelerator.prepare(self.model)
             self.create_optimizer_and_scheduler(num_training_steps=max_steps)
 
-        # prepare using `accelerator` prepare
         if use_accelerator_prepare:
             self.model.train()
             if hasattr(self.lr_scheduler, "step"):
@@ -534,26 +492,21 @@ class MoETrainer(Trainer):
                 else:
                     model, self.optimizer = self.accelerator.prepare(self.model, self.optimizer)
             else:
-                # to handle cases wherein we pass "DummyScheduler" such as when it is specified in DeepSpeed config.
                 model, self.optimizer, self.lr_scheduler = self.accelerator.prepare(
                     self.model, self.optimizer, self.lr_scheduler
                 )
         elif self.args.optim in [OptimizerNames.LOMO, OptimizerNames.ADALOMO]:
-            # In this case we are in DDP + LOMO, which should be supported
             self.optimizer = self.accelerator.prepare(self.optimizer)
 
         if self.is_fsdp_enabled:
             self.model = self.model_wrapped = model
 
-        # for the rest of this function `model` is the outside model, whether it was wrapped or not
         if model is not self.model:
             self.model_wrapped = model
 
-        # backward compatibility
         if self.is_deepspeed_enabled:
             self.deepspeed = self.model_wrapped
 
-        # ckpt loading
         if resume_from_checkpoint is not None:
             if self.is_deepspeed_enabled:
                 deepspeed_load_checkpoint(
@@ -562,13 +515,8 @@ class MoETrainer(Trainer):
             elif is_sagemaker_mp_enabled() or self.is_fsdp_enabled:
                 self._load_from_checkpoint(resume_from_checkpoint, self.model_wrapped)
 
-        # Check if saved optimizer or scheduler states exist
         self._load_optimizer_and_scheduler(resume_from_checkpoint)
 
-        # important: at this point:
-        # self.model         is the Transformers Model
-        # self.model_wrapped is DDP(Transformers Model), Deepspeed(Transformers Model),
-        # FSDP(Transformers Model), Dynamo Optimized Module(Transformers Model) etc.
 
         # Train!
         logger.info("***** Running training *****")
@@ -588,7 +536,7 @@ class MoETrainer(Trainer):
         steps_trained_in_current_epoch = 0
         steps_trained_progress_bar = None
 
-        # Check if continuing training from a checkpoint
+   
         if resume_from_checkpoint is not None and os.path.isfile(
             os.path.join(resume_from_checkpoint, TRAINER_STATE_NAME)
         ):
@@ -617,24 +565,20 @@ class MoETrainer(Trainer):
         self.callback_handler.lr_scheduler = self.lr_scheduler
         self.callback_handler.train_dataloader = train_dataloader
         if self.hp_name is not None and self._trial is not None:
-            # use self._trial because the SigOpt/Optuna hpo only call `_hp_search_setup(trial)` instead of passing trial
-            # parameter to Train when using DDP.
             self.state.trial_name = self.hp_name(self._trial)
         if trial is not None:
             assignments = trial.assignments if self.hp_search_backend == HPSearchBackend.SIGOPT else trial
             self.state.trial_params = hp_params(assignments)
         else:
             self.state.trial_params = None
-        # This should be the same if the state has been saved but in case the training arguments changed, it's safer
-        # to set this after the load.
+
         self.state.max_steps = max_steps
         self.state.num_train_epochs = num_train_epochs
         self.state.is_local_process_zero = self.is_local_process_zero()
         self.state.is_world_process_zero = self.is_world_process_zero()
 
-        # tr_loss is a tensor to avoid synchronization of TPUs through .item()
+
         tr_loss = torch.tensor(0.0).to(args.device)
-        # _total_loss_scalar is updated everytime .item() has to be called on tr_loss and stores the sum of all losses
         self._total_loss_scalar = 0.0
         self._globalstep_last_logged = self.state.global_step
         model.zero_grad()
@@ -650,7 +594,6 @@ class MoETrainer(Trainer):
             if hasattr(epoch_iterator, "set_epoch"):
                 epoch_iterator.set_epoch(epoch)
 
-            # Reset the past mems state at the beginning of each epoch if necessary.
             if args.past_index >= 0:
                 self._past = None
 
@@ -701,7 +644,6 @@ class MoETrainer(Trainer):
                     self._load_rng_state(resume_from_checkpoint)
                     rng_to_sync = False
 
-                # Skip past any already trained steps if resuming training
                 if steps_trained_in_current_epoch > 0:
                     steps_trained_in_current_epoch -= 1
                     if steps_trained_progress_bar is not None:
@@ -724,7 +666,6 @@ class MoETrainer(Trainer):
                     and not is_torch_xla_available()
                     and (torch.isnan(tr_loss_step) or torch.isinf(tr_loss_step))
                 ):
-                    # if loss is nan or inf simply add the average of previous logged losses
                     tr_loss += tr_loss / (1 + self.state.global_step - self._globalstep_last_logged)
                 else:
                     if tr_loss.device != tr_loss_step.device:
@@ -742,22 +683,15 @@ class MoETrainer(Trainer):
                 if (
                     total_batched_samples % args.gradient_accumulation_steps == 0
                     or
-                    # last step in epoch but step is always smaller than gradient_accumulation_steps
                     is_last_step_and_steps_less_than_grad_acc
                 ):
-                    # the `or` condition of `is_last_step_and_steps_less_than_grad_acc` is not covered
-                    # in accelerate. So, explicitly enable sync gradients to True in that case.
                     if is_last_step_and_steps_less_than_grad_acc:
                         self.accelerator.gradient_state._set_sync_gradients(True)
 
-                    # Gradient clipping
                     if args.max_grad_norm is not None and args.max_grad_norm > 0:
-                        # deepspeed does its own clipping
-
                         if is_sagemaker_mp_enabled() and args.fp16:
                             _grad_norm = self.optimizer.clip_master_grads(args.max_grad_norm)
                         elif self.use_apex:
-                            # Revert to normal clipping otherwise, handling Apex or full precision
                             _grad_norm = nn.utils.clip_grad_norm_(
                                 amp.master_params(self.optimizer),
                                 args.max_grad_norm,
@@ -773,22 +707,17 @@ class MoETrainer(Trainer):
                             and self.accelerator.distributed_type == DistributedType.DEEPSPEED
                         ):
                             grad_norm = model.get_global_grad_norm()
-                            # In some cases the grad norm may not return a float
                             if hasattr(grad_norm, "item"):
                                 grad_norm = grad_norm.item()
                         else:
                             grad_norm = _grad_norm
 
-                    # 4.45.1 flag
                     self.control = self.callback_handler.on_pre_optimizer_step(args, self.state, self.control)
-
                     self.optimizer.step()
-
                     self.control = self.callback_handler.on_optimizer_step(args, self.state, self.control)
-
                     optimizer_was_run = not self.accelerator.optimizer_step_was_skipped
+
                     if optimizer_was_run:
-                        # Delay optimizer scheduling until metrics are generated
                         if not isinstance(self.lr_scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
                             self.lr_scheduler.step()
 
@@ -796,15 +725,11 @@ class MoETrainer(Trainer):
                     self.state.global_step += 1
                     self.state.epoch = epoch + (step + 1 + steps_skipped) / steps_in_epoch
                     self.control = self.callback_handler.on_step_end(args, self.state, self.control)
-
                     self._maybe_log_save_evaluate(tr_loss, grad_norm, model, trial, epoch, ignore_keys_for_eval)
                 else:
                     self.control = self.callback_handler.on_substep_end(args, self.state, self.control)
 
                 if self.control.should_epoch_stop or self.control.should_training_stop:
-                    # PyTorch/XLA relies on the data loader to insert the mark_step for
-                    # each step. Since we are breaking the loop early, we need to manually
-                    # insert the mark_step here.
                     if is_torch_xla_available():
                         xm.mark_step()
                     break
@@ -822,7 +747,6 @@ class MoETrainer(Trainer):
 
             if DebugOption.TPU_METRICS_DEBUG in self.args.debug:
                 if is_torch_xla_available():
-                    # tpu-comment: Logging debug metrics for PyTorch/XLA (compile, execute times, ops, etc.)
                     xm.master_print(met.metrics_report())
                 else:
                     logger.warning(
@@ -833,12 +757,10 @@ class MoETrainer(Trainer):
                 break
 
         if args.past_index and hasattr(self, "_past"):
-            # Clean the state at the end of training
             delattr(self, "_past")
 
         logger.info("\n\nTraining completed. Do not forget to share your model on huggingface.co/models =)\n\n")
         if args.load_best_model_at_end and self.state.best_model_checkpoint is not None:
-            # Wait for everyone to get here so we are sure the model has been saved by process 0.
             if is_torch_xla_available():
                 xm.rendezvous("load_best_model_at_end")
             elif args.parallel_mode == ParallelMode.DISTRIBUTED:
@@ -848,9 +770,8 @@ class MoETrainer(Trainer):
 
             self._load_best_model()
 
-        # add remaining tr_loss
         self._total_loss_scalar += tr_loss.item()
-        effective_global_step = max(self.state.global_step, 0.001)  # Avoid ZeroDivisionError
+        effective_global_step = max(self.state.global_step, 0.001) 
         train_loss = self._total_loss_scalar / effective_global_step
 
         metrics = speed_metrics(
@@ -873,7 +794,6 @@ class MoETrainer(Trainer):
         run_dir = self._get_output_dir(trial)
         checkpoints_sorted = self._sorted_checkpoints(use_mtime=False, output_dir=run_dir)
 
-        # Delete the last checkpoint when save_total_limit=1 if it's different from the best checkpoint and process allowed to save.
         if self.args.should_save and self.state.best_model_checkpoint is not None and self.args.save_total_limit == 1:
             for checkpoint in checkpoints_sorted:
                 if not os.path.samefile(checkpoint, self.state.best_model_checkpoint):
@@ -881,74 +801,10 @@ class MoETrainer(Trainer):
                     shutil.rmtree(checkpoint, ignore_errors=True)
 
         self.control = self.callback_handler.on_train_end(args, self.state, self.control)
-
-        # Wait for the checkpoint to be uploaded.
         self._finish_current_push()
 
-        # After training we make sure to retrieve back the original forward pass method
-        # for the embedding layer by removing the forward post hook.
         if self.neftune_noise_alpha is not None:
             self._deactivate_neftune(self.model)
 
         return TrainOutput(self.state.global_step, train_loss, metrics)
-
-    # def training_step(self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]]) -> torch.Tensor:
-    #     """
-    #     Perform a training step on a batch of inputs.
-
-    #     Subclass and override to inject custom behavior.
-
-    #     Args:
-    #         model (`nn.Module`):
-    #             The model to train.
-    #         inputs (`Dict[str, Union[torch.Tensor, Any]]`):
-    #             The inputs and targets of the model.
-
-    #             The dictionary will be unpacked before being fed to the model. Most models expect the targets under the
-    #             argument `labels`. Check your model's documentation for all accepted arguments.
-
-    #     Return:
-    #         `torch.Tensor`: The tensor with training loss on this batch.
-    #     """
-    #     model.train()
-    #     inputs = self._prepare_inputs(inputs)
-    #     if is_sagemaker_mp_enabled():
-    #         loss_mb = smp_forward_backward(model, inputs, self.args.gradient_accumulation_steps)
-    #         return loss_mb.reduce_mean().detach().to(self.args.device)
-
-    #     with self.compute_loss_context_manager():
-    #         loss = self.compute_loss(model, inputs)
-
-    #     del inputs
-    #     if (
-    #         self.args.torch_empty_cache_steps is not None
-    #         and self.state.global_step % self.args.torch_empty_cache_steps == 0
-    #     ):
-    #         if is_xpu_available():
-    #             torch.xpu.empty_cache()
-    #         elif is_mlu_available():
-    #             torch.mlu.empty_cache()
-    #         elif is_npu_available():
-    #             torch.npu.empty_cache()
-    #         elif is_torch_version(">=", "2.0") and is_mps_available():
-    #             torch.mps.empty_cache()
-    #         else:
-    #             torch.cuda.empty_cache()
-
-    #     kwargs = {}
-
-    #     # For LOMO optimizers you need to explicitly use the learnign rate
-    #     if self.args.optim in [OptimizerNames.LOMO, OptimizerNames.ADALOMO]:
-    #         kwargs["learning_rate"] = self._get_learning_rate()
-
-    #     if self.args.n_gpu > 1:
-    #         loss = loss.mean()  # mean() to average on multi-gpu parallel training
-
-    #     if self.use_apex:
-    #         with amp.scale_loss(loss, self.optimizer) as scaled_loss:
-    #             scaled_loss.backward()
-    #     else:
-    #         self.accelerator.backward(loss, **kwargs)
-
-    #     return loss.detach() / self.args.gradient_accumulation_steps
 

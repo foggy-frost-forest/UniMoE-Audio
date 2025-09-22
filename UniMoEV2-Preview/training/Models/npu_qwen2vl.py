@@ -78,27 +78,23 @@ class Conv3D(nn.Module):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-
-        # Convert parameters to tuples
         self.kernel_size = self._triple(kernel_size)
         self.stride = self._triple(stride)
         self.dilation = self._triple(dilation)
         self.padding_mode = padding_mode
         self.groups = groups
 
-        # Handle padding
+
         if isinstance(padding, str):
             if padding == "valid":
                 self.padding = (0, 0, 0)
             elif padding == "same":
-                # Calculate explicit padding for same output size
                 self.padding = self._calculate_same_padding()
             else:
                 raise ValueError(f"Unsupported padding mode: {padding}")
         else:
             self.padding = self._triple(padding)
 
-        # Initialize weight and bias
         self.weight = nn.Parameter(torch.Tensor(out_channels, in_channels // groups * self.kernel_size[0], self.kernel_size[1], self.kernel_size[2]))
 
         if bias:
@@ -135,21 +131,16 @@ class Conv3D(nn.Module):
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         batch_size, channels, depth, height, width = input.shape
 
-        # Apply padding
         (pad_d, pad_h, pad_w) = self.padding
         if self.padding_mode != "zeros":
             input = F.pad(input, (pad_w, pad_w, pad_h, pad_h, pad_d, pad_d), mode=self.padding_mode)
             pad_d = pad_h = pad_w = 0
 
-        # Calculate output dimensions
         D = depth + 2 * pad_d
         H = height + 2 * pad_h
         W = width + 2 * pad_w
-
-        # Calculate output depth
         D_out = (D - self.dilation[0] * (self.kernel_size[0] - 1) - 1) // self.stride[0] + 1
 
-        # Generate depth indices with dilation
         depth_indices = []
         for t in range(D_out):
             start = t * self.stride[0]
@@ -157,19 +148,16 @@ class Conv3D(nn.Module):
                 idx = start + i * self.dilation[0]
                 depth_indices.append(idx)
 
-        # Extract slices
+
         input_padded = F.pad(input, (pad_w, pad_w, pad_h, pad_h, pad_d, pad_d))
         slices = input_padded[:, :, depth_indices, :, :]
 
-        # Reshape for 2D convolution
-        slices = slices.view(batch_size, channels, D_out, self.kernel_size[0], H, W).permute(0, 2, 1, 3, 4, 5)
 
+        slices = slices.view(batch_size, channels, D_out, self.kernel_size[0], H, W).permute(0, 2, 1, 3, 4, 5)
         slices = slices.contiguous().view(batch_size * D_out, channels * self.kernel_size[0], H, W)
 
-        # Apply 2D convolution
-        output = F.conv2d(slices, self.weight, bias=None, stride=(self.stride[1], self.stride[2]), padding=(0, 0), dilation=(self.dilation[1], self.dilation[2]), groups=self.groups)
 
-        # Reshape output
+        output = F.conv2d(slices, self.weight, bias=None, stride=(self.stride[1], self.stride[2]), padding=(0, 0), dilation=(self.dilation[1], self.dilation[2]), groups=self.groups)
         C_out = self.out_channels
         H_out = output.shape[2]
         W_out = output.shape[3]

@@ -55,30 +55,24 @@ except:
 
 class Dac:
     def __init__(self):
-        # Check if model exists in ./utils/dac_model, if not, download it
         base_dir = os.path.dirname(__file__)
         dac_model_dir = os.path.join(base_dir, "dac_model")
         model_path = os.path.join(dac_model_dir, "weights_16khz.pth")
         
-        # Check if model exists in the expected location
         if not os.path.isfile(model_path):
             print(f"DAC model not found at {model_path}, downloading...")
-            # Create directory if it doesn't exist
             os.makedirs(dac_model_dir, exist_ok=True)
-            # Download the model
             downloaded_path = dac.utils.download(model_type="16khz")
-            # Move the downloaded model to our target location
             shutil.move(downloaded_path, model_path)
             print(f"DAC model downloaded and saved to {model_path}")
         
-        # Fallback to environment variable or other locations if needed
         env_path = os.environ.get("DAC_WEIGHTS")
         candidates = []
         if env_path:
             candidates.append(env_path)
         
         candidates.extend([
-            model_path,  # Our primary location
+            model_path, 
             os.path.join(base_dir, "weights_16khz.pth"),
             os.path.join(os.getcwd(), "utils", "dac_model", "weights_16khz.pth"),
             os.path.join(os.getcwd(), "dac_model", "weights_16khz.pth"),
@@ -118,19 +112,13 @@ class Dac:
         x = self.model.preprocess(signal.audio_data.to(self.model.device), signal.sample_rate)
         z, codes, latents, _, _ = self.model.encode(x)
 
-        # codes (1, 12, len)
-
-        # codes = torch.tensor(codes[0]).transpose(0, 1)
         codes = codes[0].clone().detach().transpose(0, 1)
         assert codes.shape[1] == 12 and len(codes.shape) == 2
         codes = codes.tolist()
 
-        return codes  # length, channel
+        return codes 
 
     def decode(self, codes, save_path, min_duration=None):
-        """
-        codes : (1, channel, length)
-        """
         assert codes.shape[0] == 1 and codes.shape[1] == 12
         z, _, _ = self.model.quantizer.from_codes(codes.to(self.model.device))
         audio_out = self.model.decode(z)[0].detach().cpu()
@@ -147,10 +135,6 @@ class Dac:
 
 
 def build_delay_indices(B: int, T: int, C: int, delay_pattern: List[int]) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Precompute (t_idx_BxTxC, indices_BTCx3) so that out[t, c] = in[t - delay[c], c].
-    Negative t_idx => BOS; t_idx >= T => PAD.
-    """
     delay_arr = torch.tensor(delay_pattern, dtype=torch.int32)
 
     t_idx_BxT = torch.broadcast_to(
@@ -168,10 +152,7 @@ def build_delay_indices(B: int, T: int, C: int, delay_pattern: List[int]) -> Tup
         torch.arange(C, dtype=torch.int32).view(1, 1, C),
         [B, T, C],
     )
-
-    # We must clamp time indices to [0..T-1] so gather_nd equivalent won't fail
     t_clamped_BxTxC = torch.clamp(t_idx_BxTxC, 0, T - 1)
-
     indices_BTCx3 = torch.stack(
         [
             b_idx_BxTxC.reshape(-1),
@@ -179,75 +160,40 @@ def build_delay_indices(B: int, T: int, C: int, delay_pattern: List[int]) -> Tup
             c_idx_BxTxC.reshape(-1),
         ],
         dim=1,
-    ).long()  # Ensure indices are long type for indexing
+    ).long()
 
     return t_idx_BxTxC, indices_BTCx3
 
 
 def apply_audio_delay(audio_BxTxC: torch.Tensor, pad_value: int, bos_value: int, precomp: Tuple[torch.Tensor, torch.Tensor]) -> torch.Tensor:
-    """
-    Applies the delay pattern to batched audio tokens using precomputed indices,
-    inserting BOS where t_idx < 0 and PAD where t_idx >= T.
-
-    Args:
-        audio_BxTxC: [B, T, C] int16 audio tokens (or int32/float)
-        pad_value: the padding token
-        bos_value: the BOS token
-        precomp:  (t_idx_BxTxC, indices_BTCx3) from build_delay_indices
-
-    Returns:
-        result_BxTxC: [B, T, C] delayed audio tokens
-    """
-    device = audio_BxTxC.device  # Get device from input tensor
+    device = audio_BxTxC.device 
     t_idx_BxTxC, indices_BTCx3 = precomp
-    t_idx_BxTxC = t_idx_BxTxC.to(device)  # Move precomputed indices to device
+    t_idx_BxTxC = t_idx_BxTxC.to(device)
     indices_BTCx3 = indices_BTCx3.to(device)
-
-    # Equivalent of tf.gather_nd using advanced indexing
-    # Ensure indices are long type if not already (build_delay_indices should handle this)
     gathered_flat = audio_BxTxC[indices_BTCx3[:, 0], indices_BTCx3[:, 1], indices_BTCx3[:, 2]]
     gathered_BxTxC = gathered_flat.view(audio_BxTxC.shape)
+    mask_bos = t_idx_BxTxC < 0  
+    mask_pad = t_idx_BxTxC >= audio_BxTxC.shape[1]  
 
-    # Create masks on the correct device
-    mask_bos = t_idx_BxTxC < 0  # => place bos_value
-    mask_pad = t_idx_BxTxC >= audio_BxTxC.shape[1]  # => place pad_value
-
-    # Create scalar tensors on the correct device
     bos_tensor = torch.tensor(bos_value, dtype=audio_BxTxC.dtype, device=device)
     pad_tensor = torch.tensor(pad_value, dtype=audio_BxTxC.dtype, device=device)
 
-    # If mask_bos, BOS; else if mask_pad, PAD; else original gather
-    # All tensors should now be on the same device
     result_BxTxC = torch.where(mask_bos, bos_tensor, torch.where(mask_pad, pad_tensor, gathered_BxTxC))
 
     return result_BxTxC
 
 
 def build_revert_indices(B: int, T: int, C: int, delay_pattern: List[int]) -> Tuple[torch.Tensor, torch.Tensor]:
-    """
-    Precompute indices for the revert operation using PyTorch.
-
-    Returns:
-        A tuple (t_idx_BxTxC, indices_BTCx3) where:
-            - t_idx_BxTxC is a tensor of shape [B, T, C] computed as time indices plus the delay.
-            - indices_BTCx3 is a tensor of shape [B*T*C, 3] used for gathering, computed from:
-                batch indices, clamped time indices, and channel indices.
-    """
-    # Use default device unless specified otherwise; assumes inputs might define device later
-    device = None  # Or determine dynamically if needed, e.g., from a model parameter
-
+    device = None
     delay_arr = torch.tensor(delay_pattern, dtype=torch.int32, device=device)
-
     t_idx_BT1 = torch.broadcast_to(torch.arange(T, device=device).unsqueeze(0), [B, T])
     t_idx_BT1 = t_idx_BT1.unsqueeze(-1)
-
     t_idx_BxTxC = torch.minimum(
         t_idx_BT1 + delay_arr.view(1, 1, C),
         torch.tensor(T - 1, device=device),
     )
     b_idx_BxTxC = torch.broadcast_to(torch.arange(B, device=device).view(B, 1, 1), [B, T, C])
     c_idx_BxTxC = torch.broadcast_to(torch.arange(C, device=device).view(1, 1, C), [B, T, C])
-
     indices_BTCx3 = torch.stack(
         [
             b_idx_BxTxC.reshape(-1),
@@ -255,7 +201,7 @@ def build_revert_indices(B: int, T: int, C: int, delay_pattern: List[int]) -> Tu
             c_idx_BxTxC.reshape(-1),
         ],
         axis=1,
-    ).long()  # Ensure indices are long type
+    ).long()
 
     return t_idx_BxTxC, indices_BTCx3
 
@@ -266,56 +212,22 @@ def revert_audio_delay(
     precomp: Tuple[torch.Tensor, torch.Tensor],
     T: int,
 ) -> torch.Tensor:
-    """
-    Reverts a delay pattern from batched audio tokens using precomputed indices (PyTorch version).
-
-    Args:
-        audio_BxTxC: Input delayed audio tensor
-        pad_value: Padding value for out-of-bounds indices
-        precomp: Precomputed revert indices tuple containing:
-            - t_idx_BxTxC: Time offset indices tensor
-            - indices_BTCx3: Gather indices tensor for original audio
-        T: Original sequence length before padding
-
-    Returns:
-        Reverted audio tensor with same shape as input
-    """
     t_idx_BxTxC, indices_BTCx3 = precomp
-    device = audio_BxTxC.device  # Get device from input tensor
-
-    # Move precomputed indices to the same device as audio_BxTxC if they aren't already
+    device = audio_BxTxC.device  
     t_idx_BxTxC = t_idx_BxTxC.to(device)
     indices_BTCx3 = indices_BTCx3.to(device)
-
-    # Using PyTorch advanced indexing (equivalent to tf.gather_nd or np equivalent)
     gathered_flat = audio_BxTxC[indices_BTCx3[:, 0], indices_BTCx3[:, 1], indices_BTCx3[:, 2]]
-    gathered_BxTxC = gathered_flat.view(audio_BxTxC.size())  # Use .size() for robust reshaping
+    gathered_BxTxC = gathered_flat.view(audio_BxTxC.size())
 
-    # Create pad_tensor on the correct device
     pad_tensor = torch.tensor(pad_value, dtype=audio_BxTxC.dtype, device=device)
-    # Create T tensor on the correct device for comparison
     T_tensor = torch.tensor(T, device=device)
 
-    result_BxTxC = torch.where(t_idx_BxTxC >= T_tensor, pad_tensor, gathered_BxTxC)  # Changed np.where to torch.where
+    result_BxTxC = torch.where(t_idx_BxTxC >= T_tensor, pad_tensor, gathered_BxTxC)
 
     return result_BxTxC
 
 
 def _prepare_audio_prompt(model, audio_prompts: list[torch.Tensor]):
-    """Prepares the audio prompt tensor for the decoder.
-    Handles padding, adds the beginning-of-sequence (BOS) token, applies the
-    delay pattern, and determines the number of prefill steps for each item
-    in the batch.
-    Args:
-        audio_prompts: A list of audio prompt tensors (encoded DAC frames) or None.
-                       Each tensor should have shape [T, C].
-    Returns:
-        A tuple containing:
-            - delayed_batch (torch.Tensor): The prepared audio prompt tensor with
-              delays applied, shape [B, T_max_padded, C].
-            - prefill_steps (list[int]): A list containing the number of valid
-              tokens (including BOS) for each prompt in the batch.
-    """
     num_channels = model.config.codec_channels
     audio_bos_value = model.config.codec_bos_value
     delay_pattern = model.config.codec_delay_pattern
@@ -387,21 +299,6 @@ class DecoderOutput:
 
 
 def _generate_output(model, generated_codes: torch.Tensor, lengths_Bx: torch.Tensor) -> list[np.ndarray]:
-    """Converts generated delayed codes into audio waveforms.
-    Reverts the delay pattern applied during generation, decodes the resulting
-    codebook using the DAC model (if loaded), and returns a list of audio
-    waveforms as NumPy arrays. If DAC is not loaded, returns the raw codebook indices.
-    Args:
-        generated_codes: The tensor of generated audio codes with delays,
-                         shape [B, T_gen, C].
-        lengths_Bx: A tensor containing the valid length of generated codes
-                    (excluding padding and BOS/EOS markers) for each item
-                    in the batch, shape [B].
-    Returns:
-        A list of NumPy arrays, where each array represents the generated audio
-        waveform for one item in the batch. If DAC is not loaded, returns the
-        raw, reverted codebook indices as NumPy arrays.
-    """
     num_channels = model.config.codec_channels
     batch_size = generated_codes.shape[0]
     seq_length = generated_codes.shape[1]
@@ -421,31 +318,16 @@ def _generate_output(model, generated_codes: torch.Tensor, lengths_Bx: torch.Ten
         T=seq_length,
     )[:, :-max_delay_pattern, :]
 
-    # min_valid_index = 0
-    # max_valid_index = 1023
-    # invalid_mask = (codebook < min_valid_index) | (codebook > max_valid_index)
-    # codebook[invalid_mask] = 0
-
     audios = []
     for i in range(batch_size):
         audios.append(codebook[i, : lengths_Bx[i], :].cpu())
+
     return audios
 
 
 # =============================================================================
 # DeepSpeed MoE Inference Utilities
 # =============================================================================
-
-"""
-Importing this file will modify:
-deepspeed.moe.sharded_moe.MOELayer.forward = gate_forward
-deepspeed.moe.sharded_moe.top2gating = top2gating
-
-It removes the AlltoAll distributed operation, allowing Deepspeed MoE to perform inference
-on a single machine without requiring a Deepspeed distributed launch. 
-However, ep_size cannot be used (it is recommended to set ep_size=1).
-"""
-
 
 def _AllToAll_forward(ctx: Any, group: dist.ProcessGroup, input: Tensor) -> Tensor:  # type: ignore
     ctx.group = group
@@ -454,12 +336,7 @@ def _AllToAll_forward(ctx: Any, group: dist.ProcessGroup, input: Tensor) -> Tens
 
 
 def gate_forward(self, *input: Tensor, **kwargs: Any) -> Tensor:
-    # Implement Algorithm 2 from GShard paper.
     d_model = input[0].shape[-1]
-
-    # Initial implementation -> Reshape into S tokens by dropping sequence dimension.
-    # Reshape into G groups so that each group can distribute tokens equally
-    # group_size = kwargs['group_size'] if 'group_size' in kwargs.keys() else 1
     reshaped_input = input[0].reshape(-1, d_model)
 
     if self.use_tutel:
@@ -474,10 +351,8 @@ def gate_forward(self, *input: Tensor, **kwargs: Any) -> Tensor:
         self.l_aux, combine_weights, dispatch_mask, self.exp_counts = self.gate(reshaped_input, input[1])
         dispatched_input = einsum("sec,sm->ecm", dispatch_mask.type_as(input[0]), reshaped_input)
 
-    # Re-shape after all-to-all: ecm -> gecm
     dispatched_input = dispatched_input.reshape(self.ep_size, self.num_local_experts, -1, d_model)
     expert_output = self.experts(dispatched_input)
-    # Re-shape before drop_tokens: gecm -> ecm
     expert_output = expert_output.reshape(self.ep_size * self.num_local_experts, dispatched_input.shape[2], -1)
 
     if self.use_tutel:
@@ -494,67 +369,48 @@ def top2gating(
     logits: Tensor, capacity_factor: float, min_capacity: int, drop_tokens: bool = True, ep_group: Union[torch.distributed.ProcessGroup, None] = None, top2_2nd_expert_sampling: bool = True
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """Implements Top2Gating on logits."""
-    # everything is in fp32 in this function
     gates = F.softmax(logits, dim=1)
-
-    # Create a mask for 1st's expert per token
     indices1_s = torch.argmax(gates, dim=1)
     num_experts = int(gates.shape[1])
     mask1 = F.one_hot(indices1_s, num_classes=num_experts)
 
     if top2_2nd_expert_sampling:
-        # Create a mask for 2nd's expert per token using Gumbel-max trick
-        # https://timvieira.github.io/blog/post/2014/07/31/gumbel-max-trick/
         logits += gumbel_rsample(logits.shape, device=logits.device)
 
-    # Replace top-expert with min value
     logits_except1 = logits.masked_fill(mask1.bool(), float("-inf"))
     indices2_s = torch.argmax(logits_except1, dim=1)
     mask2 = F.one_hot(indices2_s, num_classes=num_experts)
 
-    # Compute locations in capacity buffer
     locations1 = torch.cumsum(mask1, dim=0) - 1
     locations2 = torch.cumsum(mask2, dim=0) - 1
-    # Update 2nd's location by accounting for locations of 1st
     locations2 += torch.sum(mask1, dim=0, keepdim=True)
 
-    # Compute l_aux
     me = torch.mean(gates, dim=0)
     ce = torch.mean(mask1.float(), dim=0)
     l_aux = torch.mean(me * ce) * num_experts * num_experts
-
-    # gating decisions
     exp_counts = torch.sum(mask1 + mask2, dim=0).detach().to(logits.device)
 
     if drop_tokens:
-        # Calculate configured capacity and remove locations outside capacity from mask
         capacity = _capacity(gates, torch.tensor(capacity_factor * 2), torch.tensor(min_capacity))
         mask1 *= torch.lt(locations1, capacity)
         mask2 *= torch.lt(locations2, capacity)
     else:
-        # Do not drop tokens - set capacity according to current expert assignments
         new_capacity = torch.max(exp_counts)
-        # if ep_group is not None:
-        #     dist.all_reduce(new_capacity, op=dist.ReduceOp.MAX, group=ep_group)
-
         capacity = new_capacity
 
-    # Store the capacity location for each token
     locations1_s = torch.sum(locations1 * mask1, dim=1)
     locations2_s = torch.sum(locations2 * mask2, dim=1)
-
-    # Normalize gate probabilities
     mask1_float = mask1.float()
     mask2_float = mask2.float()
+
     gates1_s = einsum("se,se->s", gates, mask1_float)
     gates2_s = einsum("se,se->s", gates, mask2_float)
     denom_s = gates1_s + gates2_s
-    # Avoid divide-by-zero
+
     denom_s = torch.clamp(denom_s, min=torch.finfo(denom_s.dtype).eps)
     gates1_s /= denom_s
     gates2_s /= denom_s
 
-    # Calculate combine_weights and dispatch_mask
     gates1 = einsum("s,se->se", gates1_s, mask1_float)
     gates2 = einsum("s,se->se", gates2_s, mask2_float)
     locations1_sc = _one_hot_to_float(locations1_s, capacity)
@@ -578,23 +434,6 @@ deepspeed.moe.sharded_moe._AllToAll.forward = _AllToAll_forward
 # =============================================================================
 
 def compress_matrix(A: torch.Tensor, mask: torch.Tensor, force_dim: int = None, allow_larger_dim=None) -> torch.Tensor:
-    """
-    Compresses matrix A (S, E, ...) based on the mask (S, E).
-
-    Args:
-        A (torch.Tensor): The input matrix with shape (S, E, ...).
-        mask (torch.Tensor): The binary mask matrix with shape (S, E).
-        force_dim (int, optional): If provided, forces the first dimension of the output B to this value.
-                                   Otherwise, it's determined by the max number of 1s in any mask column.
-        allow_larger_dim (bool, optional):
-            - If force_dim causes the target dimension to be > S (original rows):
-                - True: Allows padding B with zeros.
-                - False: Raises an AssertionError.
-                - None (default): Allows padding with zeros and prints a warning.
-
-    Returns:
-        torch.Tensor: The compressed matrix B with shape (X_target_dim, E, ...).
-    """
     if A.shape[:2] != mask.shape:
         raise ValueError("First two dimensions of A and mask must match.")
     if mask.ndim != 2:
@@ -618,26 +457,19 @@ def compress_matrix(A: torch.Tensor, mask: torch.Tensor, force_dim: int = None, 
     if X == 0:
         return torch.empty((0, E, *trailing_dims_shape), dtype=A.dtype, device=device)
 
-    # sorted_row_indices[r, c] gives the original row index in A
-    # that moves to the r-th position in the sorted version of column c.
-    sorted_row_indices_2d = torch.argsort(mask.float(), dim=0, descending=True)  # Shape (S, E)
-
-    # Expand sorted_row_indices_2d to match A's dimensions for gather
-    # Shape: (S, E, 1, 1, ...) -> (S, E, D1, D2, ...)
+    sorted_row_indices_2d = torch.argsort(mask.float(), dim=0, descending=True)  
     view_shape_for_indices = (S, E, *((1,) * num_trailing_dims))
     expanded_indices = sorted_row_indices_2d.view(view_shape_for_indices).expand_as(A)
 
-    # Gather elements from A
-    A_gathered = torch.gather(A, 0, expanded_indices)  # Shape (S, E, ...)
+    A_gathered = torch.gather(A, 0, expanded_indices)  
 
-    # Take the top X rows
     if X <= A_gathered.shape[0]:
-        B_candidate = A_gathered[:X, ...]  # Shape (X, E, ...)
+        B_candidate = A_gathered[:X, ...] 
     elif allow_larger_dim or allow_larger_dim is None:
         if allow_larger_dim is None:
             print(f"[Warning compress_matrix] Target dimension X ({X}) is larger than "
                       f"A's original row count S ({S}). Padding B_candidate with zeros.")
-        B_candidate = A_gathered  # Shape (X, E, ...)
+        B_candidate = A_gathered 
         zeros_shape = [X - A_gathered.shape[0]] + list(B_candidate.shape[1:])
         B_candidate = torch.cat((B_candidate, torch.zeros(zeros_shape, dtype=B_candidate.dtype, device=B_candidate.device)), dim=0)  # Shape (X_target_dim, E, ...)
     else:
@@ -645,43 +477,20 @@ def compress_matrix(A: torch.Tensor, mask: torch.Tensor, force_dim: int = None, 
                 f"Target dimension X ({X}) is larger than A's original row count S ({S}) "
                 f"and allow_larger_dim is False. Padding is disallowed."
             )
-
-    # Create a mask for B to zero out padding
-    row_indices_for_B = torch.arange(X, device=device).unsqueeze(1)  # Shape (X, 1)
-    b_mask_2d = row_indices_for_B < ones_per_column.unsqueeze(0)  # Shape (X, E)
-
-    # Expand b_mask_2d and apply it
-    # Shape: (X, E, 1, 1, ...) -> (X, E, D1, D2, ...)
+    row_indices_for_B = torch.arange(X, device=device).unsqueeze(1) 
+    b_mask_2d = row_indices_for_B < ones_per_column.unsqueeze(0)  
     view_shape_for_b_mask = (X, E, *((1,) * num_trailing_dims))
-    # B = torch.zeros_like(B_candidate) # Initialize B
-    # expanded_b_mask_for_B = b_mask_2d.view(view_shape_for_b_mask).expand_as(B_candidate)
-    # B[expanded_b_mask_for_B] = B_candidate[expanded_b_mask_for_B]
-    # More concise way:
     B = B_candidate * b_mask_2d.view(view_shape_for_b_mask).to(A.dtype)
 
     return B
 
 
 def decompress_matrix(B: torch.Tensor, mask: torch.Tensor, allow_larger_dim=None) -> torch.Tensor:
-    """
-    Decompresses matrix B (X, E, ...) back to original shape (S, E, ...) using mask (S, E).
-
-    Args:
-        B (torch.Tensor): The compressed matrix with shape (X, E, ...).
-        mask (torch.Tensor): The original binary mask matrix with shape (S, E).
-        allow_larger_dim (bool, optional):
-            - If B.shape[0] (input X) > S (target rows for A):
-                - True: Allows truncating B to S rows.
-                - False: Raises an AssertionError.
-                - None (default): Allows truncating B to S rows and prints a warning.
-    Returns:
-        torch.Tensor: The decompressed matrix A_reconstructed with shape (S, E, ...).
-    """
     if B.shape[1] != mask.shape[1]:
         raise ValueError("B's second dimension and mask's second dimension (E) must match.")
     if mask.ndim != 2:
         raise ValueError("mask must be a 2D tensor.")
-    if not ((mask == 0) | (mask == 1)).all(): # Simplified error for brevity here, use your detailed one
+    if not ((mask == 0) | (mask == 1)).all(): 
         raise ValueError("mask must only contain 0s and 1s.")
 
     S, E = mask.shape
@@ -690,11 +499,8 @@ def decompress_matrix(B: torch.Tensor, mask: torch.Tensor, allow_larger_dim=None
     num_trailing_dims = len(trailing_dims_shape)
     device = B.device
 
-    if X == 0:  # If B is empty (e.g., mask was all zeros)
-        return torch.zeros((S, E, *trailing_dims_shape), dtype=B.dtype, device=device)
-
-    if X <= S:
-        pass
+    if X == 0:  return torch.zeros((S, E, *trailing_dims_shape), dtype=B.dtype, device=device)
+    if X <= S: pass
     elif allow_larger_dim or allow_larger_dim is None:
         if allow_larger_dim is None:
                 print(f"[Warning decompress_matrix] Input B.shape[0] ({X}) is larger than "
@@ -707,28 +513,12 @@ def decompress_matrix(B: torch.Tensor, mask: torch.Tensor, allow_larger_dim=None
                 f"and allow_larger_dim is False. Truncation is disallowed."
             )
 
-    # Reconstruct sorted_row_indices as in compression
-    sorted_row_indices_2d = torch.argsort(mask.float(), dim=0, descending=True)  # Shape (S, E)
-
-    # These are the row indices in A where elements of B should be placed.
-    target_A_row_indices_2d = sorted_row_indices_2d[:X, :]  # Shape (X, E)
-
-    # Initialize A_reconstructed with zeros
+    sorted_row_indices_2d = torch.argsort(mask.float(), dim=0, descending=True)  
+    target_A_row_indices_2d = sorted_row_indices_2d[:X, :]  
     A_reconstructed = torch.zeros((S, E, *trailing_dims_shape), dtype=B.dtype, device=device)
-
-    # Expand target_A_row_indices_2d to match B's dimensions for scatter_
-    # Shape: (X, E, 1, 1, ...) -> (X, E, D1, D2, ...)
     view_shape_for_target_indices = (X, E, *((1,) * num_trailing_dims))
     expanded_target_indices = target_A_row_indices_2d.view(view_shape_for_target_indices).expand_as(B)
-
-    # Scatter elements from B into A_reconstructed
     A_reconstructed.scatter_(dim=0, index=expanded_target_indices, src=B)
-
-    # Optional: Explicitly ensure positions where mask is 0 are zero.
-    # This should be redundant if B was formed correctly by compress_matrix
-    # and scatter_ works as intended.
-    # expanded_mask_for_A = mask.view(S, E, *((1,)*num_trailing_dims)).expand_as(A_reconstructed)
-    # A_reconstructed = A_reconstructed * expanded_mask_for_A.to(A_reconstructed.dtype)
 
     return A_reconstructed
 
@@ -808,27 +598,22 @@ class Conv3D(nn.Module):
         super().__init__()
         self.in_channels = in_channels
         self.out_channels = out_channels
-
-        # Convert parameters to tuples
         self.kernel_size = self._triple(kernel_size)
         self.stride = self._triple(stride)
         self.dilation = self._triple(dilation)
         self.padding_mode = padding_mode
         self.groups = groups
 
-        # Handle padding
         if isinstance(padding, str):
             if padding == "valid":
                 self.padding = (0, 0, 0)
             elif padding == "same":
-                # Calculate explicit padding for same output size
                 self.padding = self._calculate_same_padding()
             else:
                 raise ValueError(f"Unsupported padding mode: {padding}")
         else:
             self.padding = self._triple(padding)
 
-        # Initialize weight and bias
         self.weight = nn.Parameter(torch.Tensor(out_channels, in_channels // groups * self.kernel_size[0], self.kernel_size[1], self.kernel_size[2]))
 
         if bias:
@@ -853,7 +638,6 @@ class Conv3D(nn.Module):
         raise ValueError(f"Invalid 3D parameter: {x}")
 
     def _calculate_same_padding(self) -> Tuple[int, int, int]:
-        # Calculate padding for same output size
         def get_pad(size, kernel, stride, dilation):
             return ((size - 1) * stride + dilation * (kernel - 1)) // 2
 
@@ -864,22 +648,18 @@ class Conv3D(nn.Module):
 
     def forward(self, input: torch.Tensor) -> torch.Tensor:
         batch_size, channels, depth, height, width = input.shape
-
-        # Apply padding
         (pad_d, pad_h, pad_w) = self.padding
+
         if self.padding_mode != "zeros":
             input = F.pad(input, (pad_w, pad_w, pad_h, pad_h, pad_d, pad_d), mode=self.padding_mode)
             pad_d = pad_h = pad_w = 0
 
-        # Calculate output dimensions
         D = depth + 2 * pad_d
         H = height + 2 * pad_h
         W = width + 2 * pad_w
 
-        # Calculate output depth
         D_out = (D - self.dilation[0] * (self.kernel_size[0] - 1) - 1) // self.stride[0] + 1
 
-        # Generate depth indices with dilation
         depth_indices = []
         for t in range(D_out):
             start = t * self.stride[0]
@@ -887,19 +667,12 @@ class Conv3D(nn.Module):
                 idx = start + i * self.dilation[0]
                 depth_indices.append(idx)
 
-        # Extract slices
         input_padded = F.pad(input, (pad_w, pad_w, pad_h, pad_h, pad_d, pad_d))
         slices = input_padded[:, :, depth_indices, :, :]
-
-        # Reshape for 2D convolution
         slices = slices.view(batch_size, channels, D_out, self.kernel_size[0], H, W).permute(0, 2, 1, 3, 4, 5)
-
         slices = slices.contiguous().view(batch_size * D_out, channels * self.kernel_size[0], H, W)
-
-        # Apply 2D convolution
         output = F.conv2d(slices, self.weight, bias=None, stride=(self.stride[1], self.stride[2]), padding=(0, 0), dilation=(self.dilation[1], self.dilation[2]), groups=self.groups)
 
-        # Reshape output
         C_out = self.out_channels
         H_out = output.shape[2]
         W_out = output.shape[3]
@@ -1081,16 +854,6 @@ class Qwen2_5_VisionTransformerPretrainedModel(Qwen2_5_VLPreTrainedModel):
         return window_index, cu_window_seqlens
 
     def forward(self, hidden_states: torch.Tensor, grid_thw: torch.Tensor, **kwargs) -> torch.Tensor:
-        """
-        Args:
-            hidden_states (`torch.Tensor` of shape `(seq_len, hidden_size)`):
-                The final hidden states of the model.
-            grid_thw (`torch.Tensor` of shape `(num_images_or_videos, 3)`):
-                The temporal, height and width of feature shape of each image in LLM.
-
-        Returns:
-            `torch.Tensor`: hidden_states.
-        """
         hidden_states = self.patch_embed(hidden_states)
         rotary_pos_emb = self.rot_pos_emb(grid_thw)
         window_index, cu_window_seqlens = self.get_window_index(grid_thw)
@@ -1113,10 +876,6 @@ class Qwen2_5_VisionTransformerPretrainedModel(Qwen2_5_VLPreTrainedModel):
 
         cu_seqlens = torch.repeat_interleave(grid_thw[:, 1] * grid_thw[:, 2], grid_thw[:, 0]).cumsum(
             dim=0,
-            # Select dtype based on the following factors:
-            #  - FA2 requires that cu_seqlens_q must have dtype int32
-            #  - torch.onnx.export requires that cu_seqlens_q must have same dtype as grid_thw
-            # See https://github.com/huggingface/transformers/pull/34852 for more information
             dtype=grid_thw.dtype if torch.jit.is_tracing() else torch.int32,
         )
         cu_seqlens = F.pad(cu_seqlens, (1, 0), value=0)

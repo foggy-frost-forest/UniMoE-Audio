@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-UniMoE Audio Module
+UniMoE Audio Mod
 """
 
 import sys
@@ -31,15 +31,11 @@ from .UniMoE_Audio_model import (
 )
 
 
-class UniMoEAudio:
-    """UniMoE Audio generation class for text-to-music and text-to-speech."""
-    
+class UniMoEAudio: 
     def __init__(self, model_path, device_id=0):
-        """Initialize the UniMoE Audio model.
-        
-        Args:
-            model_path (str): Path to the model directory
-            device_id (int): CUDA device ID to use
+        """
+        model_path (str): Path to the model directory
+        device_id (int): CUDA device ID to use
         """
         # Configuration parameters
         self.TORCH_DTYPE = torch.bfloat16

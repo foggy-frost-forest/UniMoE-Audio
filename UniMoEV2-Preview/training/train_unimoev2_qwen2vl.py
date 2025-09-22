@@ -57,7 +57,7 @@ class ModelArguments:
     mlp_fixed_expert_num: int = field(default=2)
     mlp_dynamic_null_expert_num: int = field(default=1)
     token_drop: bool = field(default=False)
-    drop_policy: str = field(default="probs")  # probs, position
+    drop_policy: str = field(default="probs") 
     min_capacity: int = field(default=8)
     min_capacity: int = field(default=8)
     capacity_factor: float = field(default=1.0)
@@ -135,7 +135,6 @@ def initial_model(model_path, training_args, model_args):
         "min_capacity": model_args.min_capacity,
         "capacity_factor": model_args.capacity_factor,
         "fp32_gate": model_args.fp32_gate,
-        # training args, it should not be set here by the way # Todo: move it to forward
         "l_aux_weight": training_args.l_aux_weight,  #  0.025
     }
     qwen2vl_config = UniMoEV2Qwen2VLConfig.from_dict(
@@ -148,7 +147,7 @@ def initial_model(model_path, training_args, model_args):
     model = UniMoEV2Qwen2VLForConditionalGeneration._from_config(qwen2vl_config, attn_implementation=training_args.attn_implementation, torch_dtype=model_dtype)
 
     rank0_print("________ load model ________")
-    # load model state dict
+  
     state_dict = qwen2vl_model.state_dict()
 
     # MoE 加载策略,
@@ -184,7 +183,7 @@ def initial_model(model_path, training_args, model_args):
                 source_mlp_name = f"model.layers.{layer}.mlp{rest}"
                 source_mlp = mlp_state_dict[source_mlp_name]
                 if training_args.moe_copy == "all" or expert == 0:
-                    cur_mlp = cur_model_state_dict[n]  # shared复制矩阵剪切的
+                    cur_mlp = cur_model_state_dict[n]  
 
                     if cur_mlp.shape[0] != source_mlp.shape[0]:
                         if expert_type != "fixed_real_moe":
@@ -198,7 +197,7 @@ def initial_model(model_path, training_args, model_args):
                         else:
                             offset = 0
 
-                        state_dict[n] = source_mlp[offset : offset + cur_mlp.shape[0]]  # Todo: source_mlp.shape[0] % cur_mlp.shape[0] must be zero
+                        state_dict[n] = source_mlp[offset : offset + cur_mlp.shape[0]] 
 
                         if expert_type != "fixed_real_moe":
                             cutted_offset[source_mlp_name] += cur_mlp.shape[0]
@@ -220,7 +219,7 @@ def initial_model(model_path, training_args, model_args):
                         else:
                             offset = 0
 
-                        state_dict[n] = source_mlp[:, offset : offset + cur_mlp.shape[1]]  # Todo: source_mlp.shape[1] % cur_mlp.shape[1] must be zero
+                        state_dict[n] = source_mlp[:, offset : offset + cur_mlp.shape[1]] 
 
                         if expert_type != "fixed_real_moe":
                             cutted_offset[source_mlp_name] += cur_mlp.shape[1]
@@ -241,7 +240,6 @@ def initial_model(model_path, training_args, model_args):
                         assert n.endswith("bias")
                         state_dict[n] = torch.zeros_like(source_mlp)
 
-    # fix for npu custome Conv3D
     s1, s2, s3, s4, s5 = state_dict["visual.patch_embed.proj.weight"].shape
     state_dict["visual.patch_embed.proj.weight"] = state_dict["visual.patch_embed.proj.weight"].view(s1, -1, s4, s5)
 
@@ -255,7 +253,6 @@ def initial_model(model_path, training_args, model_args):
 
     model.load_state_dict(state_dict, strict=False)
 
-    # 参数类型检查
     for name, param in model.named_parameters():
         assert param.dtype == model_dtype, f"{name} dtype is {param.dtype} but not {model_dtype}"
 
@@ -265,19 +262,11 @@ def initial_model(model_path, training_args, model_args):
 
 
 def post_process_for_moe(model):
-    """
-    post init for lora on deepspeed moe expert
-    copy from deepspeed.moe.expert.Expert
-    """
     for l in range(len(model.base_model.model.language_model.model.layers)):
         for expert in model.base_model.model.language_model.model.layers[l].mlp.dynamic_real_moe.deepspeed_moe.experts.deepspeed_experts:
             for param in expert.parameters():
                 param.allreduce = False
                 param.group_name = model.base_model.model.language_model.model.layers[l].mlp.expert_group_name
-        # for expert in model.base_model.model.language_model.model.layers[l].visual_mlp.deepspeed_moe.experts.deepspeed_experts:
-        #     for param in expert.parameters():
-        #         param.allreduce = False
-        #         param.group_name = model.base_model.model.language_model.model.layers[l].visual_mlp.expert_group_name
     return model
 
 
@@ -303,7 +292,6 @@ def train():
             model_args.model_name_or_path,
             cache_dir=training_args.cache_dir,
             attn_implementation=training_args.attn_implementation,
-            # torch_dtype=(torch.bfloat16 if training_args.bf16 else None),
         )
     model.config.use_cache = False
     rank0_print("l_aux_weight: ", model.config.l_aux_weight)
@@ -315,9 +303,6 @@ def train():
         padding_side="right",
         use_fast=False,
     )
-
-    # # for deepspeed zero-3 auto calculate
-    # model.config.hidden_size = model.config.text_config.hidden_size
 
     image_processor = AutoProcessor.from_pretrained(data_args.processor_path).image_processor
     processor = AutoProcessor.from_pretrained(data_args.processor_path)

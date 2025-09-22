@@ -1,7 +1,3 @@
-"""
-反正都是抄的llama训练代码, 这里就放一些一般不会改的training代码使用的工具函数
-"""
-
 import copy
 import json
 import logging
@@ -48,10 +44,6 @@ def smart_tokenizer_and_embedding_resize(
     tokenizer: transformers.PreTrainedTokenizer,
     model: transformers.PreTrainedModel,
 ):
-    """Resize tokenizer and embedding.
-
-    Note: This is the unoptimized version that may make your embedding size not be divisible by 64.
-    """
     num_new_tokens = tokenizer.add_special_tokens(special_tokens_dict)
     model.resize_token_embeddings(len(tokenizer))
 
@@ -67,10 +59,6 @@ def smart_tokenizer_and_embedding_resize(
 
 
 class MYEpochSaveCallback(TrainerCallback):
-    """
-    A [`TrainerCallback`] that handles the default flow of the training loop for logs, evaluation and checkpoints.
-    """
-
     def __init__(self, save_model=None, save_dir=None, save_processor=None, save_lora_base_model=False):
         self.save_model = save_model
         self.save_dir = save_dir
@@ -144,7 +132,6 @@ def get_peft_config(model_args, training_args):
             lora_alpha=get_attr(model_args, "lora_alpha", 32),
             lora_dropout=get_attr(training_args, "lora_dropout", 0.05),
         )
-    # Todo: 下面peft的加上参数控制
     elif peft_mode == "prefix":
         peft_config = PrefixTuningConfig(
             task_type=TaskType.CAUSAL_LM,
@@ -189,20 +176,10 @@ def prepare_model_for_gradient_checkpointing(model):
 
 
 def compress_strings_set(strings):
-    """
-    将类似 model.layers.27.mlp.deepspeed_moe.experts.deepspeed_experts.0.up_proj.weight 的字符串按照数字压缩
-    Args:
-        strings:
-
-    Returns:
-
-    """
-    # 解析字符串，按"."分割
     holder_str = "<number_holder>"
 
     def split_and_classify(s):
         parts = s.split(".")
-        # 将每个部分分类，数字部分和非数字部分分开
         value = None
         key_parts = []
         find_digital = False
@@ -216,14 +193,12 @@ def compress_strings_set(strings):
         key = ".".join(key_parts)
         return value, key
 
-    # 压缩数字部分，找出连续的数字区间
     def compress_numeric_parts(numeric_parts):
         numeric_parts.sort()
         ranges = []
 
         if not numeric_parts:
             return numeric_parts
-        # 遍历数字并找到连续数字的范围
         start = end = numeric_parts[0]
         for num in numeric_parts[1:]:
             if num == end + 1:
@@ -234,7 +209,6 @@ def compress_strings_set(strings):
                 else:
                     ranges.append(f"{start}-{end}")
                 start = end = num
-        # 最后一个区间
         if start == end:
             ranges.append(str(start))
         else:
@@ -242,7 +216,6 @@ def compress_strings_set(strings):
         return ranges
 
     while True:
-        # 对所有字符串进行分类
         grouped = {}
         for s in strings:
             value, key = split_and_classify(s)
@@ -251,15 +224,12 @@ def compress_strings_set(strings):
             grouped[key].append(value)
 
         result = []
-        # 重新组合压缩后的数字部分和非数字部分
         for key, values in grouped.items():
             numeric_ranges = compress_numeric_parts(values)
-            # 将数字部分用"[min-max]"或单一数字表示
             if numeric_ranges:
                 numeric_str = f"[{','.join(numeric_ranges)}]"
             else:
                 numeric_str = ""
-            # 在非数字部分合适的位置插入压缩后的数字部分
             result.append(key.replace(holder_str, numeric_str))
 
         if len(result) == len(strings):

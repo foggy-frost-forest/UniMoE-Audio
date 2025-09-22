@@ -1,8 +1,3 @@
-"""
-这里放一些常见的通用数据处理函数
-
-"""
-
 import copy
 import json
 import logging
@@ -47,22 +42,6 @@ def tokenizer_image_token(prompt, tokenizer, image_token, image_token_index, add
 def preprocess_pretraining(
     sentence: str, tokenizer: transformers.PreTrainedTokenizer, image_token: str, image_token_index: int, label_ignore_index: int = -100, has_image: bool = False, truncation: bool = True
 ) -> Dict:
-    """
-    预训练的数据处理, 生成文本部分的next token prediction的label
-    相比于直接使用tokenizer.__call__, 这个函数支持tokenizer的词表里面没有image_token
-    但是不支持image_start和iamge_end不在tokenizer词表里
-    Args:
-        sentence:
-        tokenizer:
-        image_token:
-        image_token_index:
-        label_ignore_index:
-        has_image:
-        truncation:
-
-    Returns:
-    """
-
     # Tokenize conversations
     if has_image:
         input_ids = tokenizer_image_token(
@@ -104,19 +83,7 @@ def preprocess_supervised(
     truncation: bool = True,
     adding_sys_in_query=False,
 ) -> Dict:
-    """
-    预训练的数据处理, 生成文本部分的next token prediction的label
-    Args:
-        caption:
-        tokenizer:
-        has_image:
 
-    Returns:
-        input_ids: torch.LongTensor = None,
-        global_text_index: torch.FloatTensor = None,
-        labels
-
-    """
     human_role = "human"
     ai_role = "gpt"
 
