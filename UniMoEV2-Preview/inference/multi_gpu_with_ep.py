@@ -4,7 +4,7 @@ import deepspeed_moe_inference_utils
 from deepspeed import comm as dist
 from deepspeed.accelerator import get_accelerator
 from deepspeed.constants import TORCH_DISTRIBUTED_DEFAULT_PORT
-
+import os
 
 model_path = "XXX/checkpoint-xxx"
 resume_from_deepspeed_ckpt = model_path + "/global_stepxxx"
