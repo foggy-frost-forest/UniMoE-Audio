@@ -44,7 +44,6 @@ def gate_forward(self, *input: Tensor, **kwargs: Any) -> Tensor:
     reshaped_input = input[0].reshape(-1, d_model)
 
     if self.use_tutel:
-        # not check yet # Todo
         self.l_aux, C, E, indices_, locations_, gates_, self.exp_counts = self.gate(reshaped_input, input[1], True)
         S, M = reshaped_input.size(0), reshaped_input.size(1)
 
@@ -63,7 +62,6 @@ def gate_forward(self, *input: Tensor, **kwargs: Any) -> Tensor:
     expert_output = expert_output.reshape(self.ep_size * self.num_local_experts, dispatched_input.shape[2], -1)
 
     if self.use_tutel:
-        # not check yet # Todo
         combined_output = self._tutel_dispatcher.decode(expert_output.view(E * C, M))
     else:
         combined_output = einsum("sec,ecm->sm", combine_weights.type_as(input[0]), expert_output)
@@ -153,4 +151,5 @@ def top2gating(
 deepspeed.moe.sharded_moe.MOELayer.forward = gate_forward
 deepspeed.moe.sharded_moe.top2gating = top2gating
 deepspeed.moe.sharded_moe._AllToAll.forward = _AllToAll_forward
+
 
