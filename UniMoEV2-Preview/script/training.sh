@@ -37,7 +37,7 @@ ASCEND_LAUNCH_BLOCKING=1 deepspeed \
     ./training/train_unimoev2_qwen2vl.py \
     --moe_copy all \
     --attn_implementation sdpa \
-    --deepspeed training/deepspeed_zero2.conf \
+    --deepspeed ./training/deepspeed_zero2.conf \
     --initialize True \
     --model_name_or_path Qwen2-VL-2B-Instruct \
     --processor_path Qwen2-VL-2B-Instruct \
