@@ -4,10 +4,10 @@
 
 echo "----------------------- WANDB --------------------------"
 
-cd /path to/DC-MoE/github
+cd /path to/DC_MoE/github
 
 export WANDB_API_KEY='your Weights and Biases api key'
-export WANDB_PROJECT='Dynamic-Capacity-MoEV5_Qwen2VL_2B'
+export WANDB_PROJECT='Dynamic-Capacity_MoEV5_Qwen2VL_2B'
 
 # **WANDB_WATCH** (`str`, *optional* defaults to `"false"`):
 # Can be `"gradients"`, `"all"`, `"parameters"`, or `"false"`. Set to `"all"` to log gradients and
