@@ -6,8 +6,8 @@ To set up the environment and install the required dependencies, please follow t
 
 ```bash
 # Create and activate a new conda environment
-conda create -n Dynamic-Capacity-MoE python=3.9
-conda activate Dynamic-Capacity-MoE
+conda create -n dcmoe python=3.9
+conda activate dcmoe
 
 # Install the required packages
 pip install -r requirements.txt
