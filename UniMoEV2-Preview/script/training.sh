@@ -4,10 +4,10 @@
 
 echo "----------------------- WANDB --------------------------"
 
-cd /workspace/40103/orizyliu/UniMoE/github
+cd /path to/UniMoE/github
 
 export WANDB_API_KEY='your Weights and Biases api key'
-export WANDB_PROJECT='GrinMoEV5_Qwen2VL_2B'
+export WANDB_PROJECT='Dynamic-Capacity-MoEV5_Qwen2VL_2B'
 
 # **WANDB_WATCH** (`str`, *optional* defaults to `"false"`):
 # Can be `"gradients"`, `"all"`, `"parameters"`, or `"false"`. Set to `"all"` to log gradients and
@@ -23,7 +23,7 @@ export WANDB_LOG_MODEL='false'
 
 time=$(date "+%m-%d-%H-%M")
 
-export NAME="Dy8D4_Fix2D8_Top7_Drop_CF6_AuxWg10_AuxDecay_Ep8_VISA"
+export NAME="DC_MoE-training"
 
 export SAVE_PATH="./outputs" 
 
@@ -37,7 +37,7 @@ ASCEND_LAUNCH_BLOCKING=1 deepspeed \
     ./training/train_unimoev2_qwen2vl.py \
     --moe_copy all \
     --attn_implementation sdpa \
-    --deepspeed /workspace/40103/orizyliu/UniMoE/Scirpt/deepspeed_zero2.conf \
+    --deepspeed training/deepspeed_zero2.conf \
     --initialize True \
     --model_name_or_path Qwen2-VL-2B-Instruct \
     --processor_path Qwen2-VL-2B-Instruct \
