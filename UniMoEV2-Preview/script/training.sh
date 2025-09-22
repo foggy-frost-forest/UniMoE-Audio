@@ -4,7 +4,7 @@
 
 echo "----------------------- WANDB --------------------------"
 
-cd /path to/UniMoE/github
+cd /path to/DCMoE/github
 
 export WANDB_API_KEY='your Weights and Biases api key'
 export WANDB_PROJECT='Dynamic-Capacity-MoEV5_Qwen2VL_2B'
