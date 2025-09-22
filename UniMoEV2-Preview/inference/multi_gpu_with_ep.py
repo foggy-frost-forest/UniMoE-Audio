@@ -9,7 +9,7 @@ import os
 model_path = "XXX/checkpoint-xxx"
 resume_from_deepspeed_ckpt = model_path + "/global_stepxxx"
 
-model = Qwen2VLForConditionalGeneration.from_pretrained(
+model = UniMoEV2Qwen2VLForConditionalGeneration.from_pretrained(
     model_path,
     torch_dtype=torch.bfloat16,
     attn_implementation="flash_attention_2",
