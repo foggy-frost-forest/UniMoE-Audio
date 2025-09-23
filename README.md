@@ -73,20 +73,17 @@ Right: Top-P routing for token-based dynamic expert allocation.</em>
 <strong>Fig. 1</strong> UniMoE-Audio Structure
 </div>
 
----
 ### Competitive Performance on Comprehensive Speech and Music Metrics
 
 UniMoE-Audio features **Top-P routing** for adaptive expert allocation and a hybrid expert design separating domain-specific and shared computation. 
 With a **three-stage training curriculum** (specialist training, warm-up integration, joint training), it supports **voice cloning, TTS, T2M, and V2M**, achieving state-of-the-art performance and cross-task synergy.
 
----
  
 <img src="assets/img/Radar_page_001.png" alt="Performance of UniMoE-Audio" style="max-width: 90%; width: 800px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
 <div align="center">
 <strong>Fig. 2</strong> Performance of UniMoE-Audio
 </div>
 
----
 
 <!-- <img src="assets/img/AudioLLM_model-MoE.png" alt="UniMoE-Audio Structure" style="max-width: 100%; width: 800px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
 <p align="center"><strong>Fig. 1</strong>  UniMoE-Audio Structure</p> -->
