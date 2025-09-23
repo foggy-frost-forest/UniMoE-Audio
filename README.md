@@ -10,7 +10,7 @@
 
 # Welcome to the repo of **UniMoE-Audio**!
 
-### UniMoE-Audio is An Unified Speech and Music Generation with Dynamic-Capacity Mixture of Experts
+### UniMoE-Audio is A Unified Speech and Music Generation via Dynamic-Capacity Mixture of Experts
 
 <!-- [![🤗Hugging Face](https://img.shields.io/badge/🤗Hugging_Face-Uni_MoE-yellow)](https://huggingface.co/foggyforest/UniMoE-Audio-preview)
 [![Project Page](https://img.shields.io/badge/Project_Page-Uni_MoE-blue)]()
