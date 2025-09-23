@@ -10,12 +10,22 @@
 
 # Welcome to the repo of **UniMoE-Audio**!
 
-### UniMoE-Audio is An Unified Speech and Music Generation with Dynamic-Capacity Mixture of Experts
+### UniMoE-Audio is A Unified Speech and Music Generation with Dynamic-Capacity Mixture of Experts
 
-<!-- [![🤗Hugging Face](https://img.shields.io/badge/🤗Hugging_Face-Uni_MoE-yellow)](https://huggingface.co/foggyforest/UniMoE-Audio-preview)
-[![Project Page](https://img.shields.io/badge/Project_Page-Uni_MoE-blue)]()
-[![Demo](https://img.shields.io/badge/Demo-Local-orange)]() 
-[![Paper](https://img.shields.io/badge/Paper-arxiv-yellow)]() -->
+<div align="left" style="line-height: 1;">
+  |
+  <a href="https://huggingface.co/collections/XiaomiMiMo/mimo-audio-68cc7202692c27dae881cce0" target="_blank">🤗 HuggingFace</a>
+  &nbsp;|
+  <a href="https://github.com/XiaomiMiMo/MiMo-Audio/docs/UniMoE_Audio-Paper.pdf" target="_blank">📄 Paper</a>
+  &nbsp;|
+  <a href="https://mukioxun.github.io/Uni-MoE-site/home.html" target="_blank">📰 Blog</a>
+  &nbsp;|
+  <!-- <a href="https://huggingface.co/spaces/XiaomiMiMo/mimo_audio_chat" target="_blank">🔥 Online Demo</a>
+  &nbsp;| -->
+  <!-- <a href="https://github.com/XiaomiMiMo/MiMo-Audio-Eval" target="_blank">📊 MiMo-Audio-Eval</a>
+  &nbsp;| -->
+  <br/>
+</div>
 
 
 ## News
@@ -24,9 +34,7 @@
 <!-- Check out the [paper]() and [demo](). -->
 
 
-## Performance show
-<!-- 
-🎵 **[🌐 Online Preview with Video Player](docs/music.html)** - Click to play MP4 files directly in your browser -->
+## Performance Showcase
 
 | Prompt | Audio |
 |:--:|:--:|
@@ -44,46 +52,53 @@ https://github.com/user-attachments/assets/910b1fb1-76c1-4743-9f83-36ecfcbf7f9b
 
 https://github.com/user-attachments/assets/2881161e-f86f-463d-a910-06ab04799eae
 
+More perform showcase can be found in the [web](https://mukioxun.github.io/Uni-MoE-site/showcase.html).
 ## UniMoE-Audio
 
-We propose UniMoE-Audio, a unified speech and music generation model based on a novel dynamic-capacity Mixture-of-Experts framework. By integrating a dynamic-capacity routing strategy for adaptive resource allocation and a hybrid expert design for functional decoupling, our architecture effectively mitigates the inherent task conflict between speech and music generation.
+**UniMoE-Audio** is a unified framework for speech and music generation.  
+It uses a **dynamic-capacity Mixture-of-Experts (MoE)** that adapts to input complexity, enabling high-fidelity voice and expressive music within one model.
 
-### Novelty and Contributions
+UniMoE-Audio features **Top-P routing** for adaptive expert allocation and a hybrid expert design separating domain-specific and shared computation.  
+With a **three-stage training curriculum** (specialist training, warm-up integration, joint training), it supports **voice cloning, TTS, T2M, and V2M**, achieving state-of-the-art performance and cross-task synergy.
+
+---
+ 
+<img src="assets/img/abstract.png" alt="Performance of UniMoE-Audio" style="max-width: 100%; width: 1000px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
+<div align="center">
+<em>Left: Overcomes performance degradation of naive joint training.<br>
+Right: Competitive with leading models on speech and music metrics.</em>
+
+<strong>Fig. 1</strong> Performance of UniMoE-Audio
+</div>
 
 ---
 
-### Dynamic-capacity MoE for Mitigating Task Conflict
-
-**Key architectural optimizations:**
-
-- **Dynamic-capacity Routing Strategy**  
-  Dynamically adjusts the number of experts allocated to each token based on complexity, replacing conventional fixed-capacity routing with a Top-P sampling based approach.
-
-- **Hybrid Expert Design**  
-  - (1) Conditional dynamic experts for domain-specific knowledge  
-  - (2) Constantly active shared experts for domain-agnostic features  
-  - (3) Null experts enabling adaptive computation skipping  
-
-<img src="assets/img/AudioLLM_model-MoE.png" alt="UniMoE-Audio Structure" style="max-width: 100%; width: 800px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
-<p align="center"><strong>Fig. 1</strong>  UniMoE-Audio Structure</p>
+Naive joint training fails due to divergent objectives and data imbalance, causing degraded speech and music results.  
+In contrast, UniMoE-Audio achieves **synergistic gains** and strong performance across both tasks.
 
 ---
 
-### Three-stage Training Curriculum for Data Imbalance
+### Dynamic-capacity MoE for Task Conflict Mitigation
 
-**Stages:**
+The core is a Transformer with **Dynamic-Capacity MoE** layers.  
+- **Top-P routing** dynamically selects experts per token, avoiding waste on simple tokens and boosting complex ones.  
+- Combined with the **three-stage training curriculum**, UniMoE-Audio effectively handles data imbalance and task conflicts.  
+[Fig. 2](#fig2) shows the architecture.
+ 
+<img src="assets/img/AudioLLM_model-MoE.png" alt="Performance of UniMoE-Audio" style="max-width: 100%; width: 1000px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
+<div align="center">
+<em>Left: Unified architecture for multimodal speech/music generation.<br>
+Right: Top-P routing for token-based dynamic expert allocation.</em>
 
-- **Independent Specialist Training**  
-  Pre-trains proto-experts on original, uncurated datasets to acquire domain-specific knowledge.
+<strong>Fig. 2</strong> UniMoE-Audio Structure
+</div>
 
-- **MoE Fusion and Warmup**  
-  Integrates specialists into UniMoE-Audio using a curated, balanced dataset created via a data filtering pipeline.
+---
 
-- **Synergistic Joint Training**  
-  End-to-end training on the curated balanced dataset, enabling effective cross-domain knowledge transfer.
 
-<img src="assets/img/AudioLLM_training_moe.png" alt="UniMoE-Audio Training Pipeline" style="max-width: 40%; width: 600px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
-<p align="center"><strong>Fig. 2</strong>  UniMoE-Audio Training Pipeline</p>
+<!-- <img src="assets/img/AudioLLM_model-MoE.png" alt="UniMoE-Audio Structure" style="max-width: 100%; width: 800px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
+<p align="center"><strong>Fig. 1</strong>  UniMoE-Audio Structure</p> -->
+
 
 ## Installation
 The following instructions are for Linux installation.
@@ -120,6 +135,15 @@ After downloading all of them, organize the weights as follows in '/path/to/UniM
 ```
 models
 └── UniMoE_Audio-preview
+    ├──added_tokens.json
+    ├──model.safetensors.index.json
+    ├──config.json
+    ├──special_tokens_map.json
+    ├──merges.txt
+    ├──tokenizer_config.json
+    ├──trainer_state.json
+    ├──video_preprocessor_config.json
+    ├──vocab.json
     ├── model-00001-of-00003.safetensors
     ├── model-00002-of-00003.safetensors
     └── model-00003-of-00003.safetensors
@@ -161,8 +185,3 @@ pip install -r configs/requirements_web.txt
 python web_demo.py --model /path/to/your/model
 ```
 
-<!-- ## How to evaluate on datasets
-Evaluate the model on the datasets using the following command:
-```bash
-
-``` -->
