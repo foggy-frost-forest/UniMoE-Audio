@@ -84,6 +84,7 @@ class Qwen2_5_VLMoETextConfig(Qwen2_5_VLTextConfig):
         token_drop=False,
         drop_policy: str = "probs", 
         min_capacity: int = 8,
+        capacity_factor: float = 1.0,
         fp32_gate=True,
         avg_hidden_states_last=False,
         drop_token_num_print=True,
