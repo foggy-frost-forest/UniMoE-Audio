@@ -10,7 +10,7 @@
 
 # Welcome to the repo of **UniMoE-Audio**!
 
-### UniMoE-Audio is A Unified Speech and Music Generation with Dynamic-Capacity Mixture of Experts
+### UniMoE-Audio is A Unified Speech and Music Generation via Dynamic-Capacity Mixture of Experts
 
 <div align="left" style="line-height: 1;">
   |

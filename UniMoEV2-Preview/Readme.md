@@ -1,5 +1,12 @@
 # Dynamic Capacity MoE (Preview)
 
+Dynamic-Capacity Mixture-of-Experts (MoE) improves efficiency and adaptability in large models by introducing **dynamic expert allocation** and a flexible expert design.
+
+ **Dynamic-Capacity Routing**: Instead of using a fixed Top-K strategy, tokens are routed with a **Top-P mechanism** that selects the minimum number of experts needed to reach a probability threshold. This allows simple tokens to use fewer experts while complex ones leverage more, reducing wasted computation.  
+ **Shared Experts**: A small set of always-active experts capture common knowledge across all inputs, offloading the routed experts to specialize in domain-specific patterns.  
+ **Routed Experts**: Conditionally activated experts that focus on specialized knowledge, guided by the dynamic router.  
+ **Null Experts**: Parameter-free placeholders that output zeros, enabling true computation skipping for trivial tokens and extending the range of adaptive expert usage.  
+
 ## Installation
 
 To set up the environment and install the required dependencies, please follow these steps:
