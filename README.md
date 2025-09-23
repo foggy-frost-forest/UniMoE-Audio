@@ -52,31 +52,11 @@ https://github.com/user-attachments/assets/910b1fb1-76c1-4743-9f83-36ecfcbf7f9b
 
 https://github.com/user-attachments/assets/2881161e-f86f-463d-a910-06ab04799eae
 
-More perform showcase can be found in the [web](https://mukioxun.github.io/Uni-MoE-site/showcase.html).
+More performance showcases can be found in the [web](https://mukioxun.github.io/Uni-MoE-site/showcase.html).
 ## UniMoE-Audio
 
 **UniMoE-Audio** is a unified framework for speech and music generation.  
 It uses a **dynamic-capacity Mixture-of-Experts (MoE)** that adapts to input complexity, enabling high-fidelity voice and expressive music within one model.
-
-UniMoE-Audio features **Top-P routing** for adaptive expert allocation and a hybrid expert design separating domain-specific and shared computation.  
-With a **three-stage training curriculum** (specialist training, warm-up integration, joint training), it supports **voice cloning, TTS, T2M, and V2M**, achieving state-of-the-art performance and cross-task synergy.
-
----
- 
-<img src="assets/img/abstract.png" alt="Performance of UniMoE-Audio" style="max-width: 100%; width: 1000px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
-<div align="center">
-<em>Left: Overcomes performance degradation of naive joint training.<br>
-Right: Competitive with leading models on speech and music metrics.</em>
-
-<strong>Fig. 1</strong> Performance of UniMoE-Audio
-</div>
-
----
-
-Naive joint training fails due to divergent objectives and data imbalance, causing degraded speech and music results.  
-In contrast, UniMoE-Audio achieves **synergistic gains** and strong performance across both tasks.
-
----
 
 ### Dynamic-capacity MoE for Task Conflict Mitigation
 
@@ -90,11 +70,23 @@ The core is a Transformer with **Dynamic-Capacity MoE** layers.
 <em>Left: Unified architecture for multimodal speech/music generation.<br>
 Right: Top-P routing for token-based dynamic expert allocation.</em>
 
-<strong>Fig. 2</strong> UniMoE-Audio Structure
+<strong>Fig. 1</strong> UniMoE-Audio Structure
 </div>
 
 ---
+### Competitive Performance on Comprehensive Speech and Music Metrics
 
+UniMoE-Audio features **Top-P routing** for adaptive expert allocation and a hybrid expert design separating domain-specific and shared computation. 
+With a **three-stage training curriculum** (specialist training, warm-up integration, joint training), it supports **voice cloning, TTS, T2M, and V2M**, achieving state-of-the-art performance and cross-task synergy.
+
+---
+ 
+<img src="assets/img/Radar_page_001.png" alt="Performance of UniMoE-Audio" style="max-width: 90%; width: 800px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
+<div align="center">
+<strong>Fig. 2</strong> Performance of UniMoE-Audio
+</div>
+
+---
 
 <!-- <img src="assets/img/AudioLLM_model-MoE.png" alt="UniMoE-Audio Structure" style="max-width: 100%; width: 800px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
 <p align="center"><strong>Fig. 1</strong>  UniMoE-Audio Structure</p> -->
