@@ -10,13 +10,13 @@
 
 # Welcome to the repo of **UniMoE-Audio**!
 
-### UniMoE-Audio: A Unified Speech and Music Generation via Dynamic-Capacity Mixture of Experts
-
+### UniMoE-Audio: 
+### A Unified Speech and Music Generation via Dynamic-Capacity Mixture of Experts
 <div align="left" style="line-height: 1;">
   |
-  <a href="https://huggingface.co/collections/XiaomiMiMo/mimo-audio-68cc7202692c27dae881cce0" target="_blank">🤗 HuggingFace</a>
+  <a href="https://huggingface.co/foggy-frost-forest/UniMoE-Audio" target="_blank">🤗 HuggingFace</a>
   &nbsp;|
-  <a href="https://github.com/foggy-frost-forest/UniMoE-Audio/main/docs/UniMoE_Audio-Paper.pdf" target="_blank">📄 Paper</a>
+  <a href="docs/UniMoE_Audio-Paper.pdf" target="_blank">📄 Paper</a>
   &nbsp;|
   <a href="https://mukioxun.github.io/Uni-MoE-site/home.html" target="_blank">📰 Blog</a>
   &nbsp;|
