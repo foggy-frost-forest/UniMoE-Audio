@@ -1,7 +1,12 @@
 import torch
 
 
-def compress_matrix(A: torch.Tensor, mask: torch.Tensor, force_dim: int = None, allow_larger_dim=None) -> torch.Tensor:
+def compress_matrix(
+    A: torch.Tensor, 
+    mask: torch.Tensor, 
+    force_dim: int = None, 
+    allow_larger_dim=None
+) -> torch.Tensor:
     
     if A.shape[:2] != mask.shape:
         raise ValueError("First two dimensions of A and mask must match.")
@@ -54,7 +59,11 @@ def compress_matrix(A: torch.Tensor, mask: torch.Tensor, force_dim: int = None, 
     return B
 
 
-def decompress_matrix(B: torch.Tensor, mask: torch.Tensor, allow_larger_dim=None) -> torch.Tensor:
+def decompress_matrix(
+    B: torch.Tensor, 
+    mask: torch.Tensor, 
+    allow_larger_dim=None
+) -> torch.Tensor:
     if B.shape[1] != mask.shape[1]:
         raise ValueError("B's second dimension and mask's second dimension (E) must match.")
     if mask.ndim != 2:

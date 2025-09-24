@@ -70,14 +70,11 @@ def top2gating(
 ) -> Tuple[Tensor, Tensor, Tensor, Tensor]:
     """Implements Top2Gating on logits."""
     gates = F.softmax(logits, dim=1)
-
-    # Create a mask for 1st's expert per token
     indices1_s = torch.argmax(gates, dim=1)
     num_experts = int(gates.shape[1])
     mask1 = F.one_hot(indices1_s, num_classes=num_experts)
 
     if top2_2nd_expert_sampling:
-        # Create a mask for 2nd's expert per token using Gumbel-max trick
         # https://timvieira.github.io/blog/post/2014/07/31/gumbel-max-trick/
         logits += gumbel_rsample(logits.shape, device=logits.device)
 

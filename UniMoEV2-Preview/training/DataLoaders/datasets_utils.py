@@ -20,7 +20,12 @@ except ImportError:
     from ..training_utils import rank0_print
 
 
-def tokenizer_image_token(prompt, tokenizer, image_token, image_token_index, add_special_tokens=True) -> List:
+def tokenizer_image_token(
+    prompt, tokenizer, 
+    image_token, 
+    image_token_index, 
+    add_special_tokens=True
+) -> List:
     prompt_chunks = [tokenizer(chunk, add_special_tokens=add_special_tokens).input_ids for chunk in prompt.split(image_token)]
 
     def insert_separator(X, sep):
@@ -28,7 +33,6 @@ def tokenizer_image_token(prompt, tokenizer, image_token, image_token_index, add
 
     input_ids = []
     offset = 0
-    # 如果tokenizer默认加bos, offset要设为1
     if len(prompt_chunks) > 0 and len(prompt_chunks[0]) > 0 and prompt_chunks[0][0] == tokenizer.bos_token_id:
         offset = 1
         input_ids.append(prompt_chunks[0][0])
@@ -40,9 +44,14 @@ def tokenizer_image_token(prompt, tokenizer, image_token, image_token_index, add
 
 
 def preprocess_pretraining(
-    sentence: str, tokenizer: transformers.PreTrainedTokenizer, image_token: str, image_token_index: int, label_ignore_index: int = -100, has_image: bool = False, truncation: bool = True
+    sentence: str, 
+    tokenizer: transformers.PreTrainedTokenizer, 
+    image_token: str, 
+    image_token_index: int, 
+    label_ignore_index: int = -100, 
+    has_image: bool = False, 
+    truncation: bool = True
 ) -> Dict:
-    # Tokenize conversations
     if has_image:
         input_ids = tokenizer_image_token(
             sentence,
@@ -63,7 +72,6 @@ def preprocess_pretraining(
     input_ids = torch.tensor(input_ids, dtype=torch.long)
     eos_token_index = len(input_ids) - 1
 
-    # Mask targets
     targets = input_ids.clone()
     if has_image:
         targets[targets == image_token_index] = label_ignore_index
@@ -87,7 +95,6 @@ def preprocess_supervised(
     human_role = "human"
     ai_role = "gpt"
 
-    # Apply prompt templates
     assert sentence[0]["from"] == human_role
 
     sources = []
@@ -97,13 +104,12 @@ def preprocess_supervised(
         value = message["value"]
         assert role == ai_role if i % 2 else role == human_role
         if i == 0 and adding_sys_in_query:
-            value = system_message + value  # llama的system message是加在round message里面
+            value = system_message + value 
         if i % 2 == 0:
             sources.append(input_format.format(value))
         else:
             targets.append(value + tokenizer.eos_token)
 
-    # Tokenize conversations
     input_ids = []
     labels = []
 
@@ -116,7 +122,7 @@ def preprocess_supervised(
         labels = [label_ignore_index] * len(input_ids)
 
     for source, target in zip(sources, targets):
-        if source[-1] in ["\n", "\t", " "]:  # according to the input format
+        if source[-1] in ["\n", "\t", " "]: 
             target = source + target.strip()
         else:
             target = source + " " + target.strip()
