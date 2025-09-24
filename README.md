@@ -18,7 +18,7 @@
   &nbsp;|
   <a href="docs/UniMoE_Audio-Paper.pdf" target="_blank">📄 Paper</a>
   &nbsp;|
-  <a href="https://mukioxun.github.io/Uni-MoE-site/home.html" target="_blank">📰 Blog</a>
+  <a href="https://mukioxun.github.io/Uni-MoE-site/home.html" target="_blank">📰 Website</a>
   &nbsp;|
   <!-- <a href="https://huggingface.co/spaces/XiaomiMiMo/mimo_audio_chat" target="_blank">🔥 Online Demo</a>
   &nbsp;| -->
