@@ -40,6 +40,7 @@ class UniMoEAudio:
         # Configuration parameters
         self.TORCH_DTYPE = torch.bfloat16
         self.MAX_TOKENS = 1500
+        self.MIN_TOKENS = 150
         
         # Templates and constants
         self.SYSTEM_MESSAGE = """<|im_start|>system\nYou are a helpful assistant.<|im_end|>\n"""
@@ -140,9 +141,15 @@ class UniMoEAudio:
                 except Exception as e2:
                     raise Exception(f"Audio encoding failed: {e1}, {e2}")
 
-    def _generate_audio_core(self, source_input, codec_input_ids, cfg_scale=1.0, temperature=1.0,
-                            max_audio_seconds=10, min_audio_seconds=1, top_p=1.0,
-                            cfg_filter_top_k=45, eos_prob_mul_factor=1.0, do_sample=True):
+    def _generate_audio_core(
+            self, 
+            source_input, 
+            codec_input_ids, 
+            cfg_scale=1.0, temperature=1.0,
+            max_audio_seconds=10, min_audio_seconds=3, top_p=1.0,
+            cfg_filter_top_k=45, eos_prob_mul_factor=1.0, 
+            do_sample=True
+        ):
         """Core audio generation function."""
         batch_size = len(source_input['input_ids']) // 2
         input_ids = source_input.input_ids.to(self.device)
@@ -151,6 +158,7 @@ class UniMoEAudio:
             codec_input_ids = codec_input_ids.to(self.device)
 
         calculated_max_tokens = min(int(max_audio_seconds * 50), self.MAX_TOKENS)
+        calculated_min_tokens = max(int(min_audio_seconds * 50), self.MIN_TOKENS)
 
         prefill, prefill_steps = _prepare_audio_prompt(self.model, audio_prompts=[None] * batch_size)
         dec_output = DecoderOutput(prefill, prefill_steps, self.model.device, labels_prefill=None)
@@ -162,7 +170,7 @@ class UniMoEAudio:
                 attention_mask=attention_mask,
                 dec_output=dec_output,
                 max_tokens=calculated_max_tokens,
-                min_tokens=3*50,
+                min_tokens=calculated_min_tokens,
                 cfg_scale=cfg_scale,
                 temperature=temperature,
                 top_p=top_p,
@@ -173,8 +181,18 @@ class UniMoEAudio:
             )
         return _generate_output(self.model, generated_codes, lengths)
 
-    def text_to_music(self, caption, output_path, cfg_scale=10.0, temperature=1.0, max_audio_seconds=15,
-                      top_p=1.0, cfg_filter_top_k=45, eos_prob_mul_factor=0.6, do_sample=True):
+    def text_to_music(
+            self, caption, 
+            output_path, 
+            cfg_scale=10.0, 
+            temperature=1.0, 
+            max_audio_seconds=15,
+            min_audio_seconds=10,
+            top_p=1.0, 
+            cfg_filter_top_k=45, 
+            eos_prob_mul_factor=0.6, 
+            do_sample=True
+        ):
         """Generate music from text description.
         
         Args:
@@ -207,7 +225,7 @@ class UniMoEAudio:
                 try:
                     result['value'] = self._generate_audio_core(
                         source_input, None, cfg_scale=cfg_scale, temperature=temperature,
-                        max_audio_seconds=max_audio_seconds, min_audio_seconds=10, top_p=top_p,
+                        max_audio_seconds=max_audio_seconds, min_audio_seconds=min_audio_seconds, top_p=top_p,
                         cfg_filter_top_k=cfg_filter_top_k, eos_prob_mul_factor=eos_prob_mul_factor,
                         do_sample=do_sample
                     )
@@ -241,9 +259,19 @@ class UniMoEAudio:
             print(f"Generation failed: {str(e)}")
             return None
 
-    def text_to_speech(self, target_text, reference_audio, reference_text, output_path, cfg_scale=1.0,
-                       temperature=1.0, max_audio_seconds=30, top_p=1.0,
-                       cfg_filter_top_k=45, eos_prob_mul_factor=1.0, do_sample=True):
+    def text_to_speech(
+            self, 
+            target_text, 
+            reference_audio, reference_text, 
+            output_path, 
+            cfg_scale=1.0, 
+            temperature=1.0, 
+            max_audio_seconds=30, 
+            top_p=1.0, 
+            cfg_filter_top_k=45, 
+            eos_prob_mul_factor=1.0, 
+            do_sample=True
+        ):
         """Generate speech from text using reference audio for voice cloning.
         
         Args:

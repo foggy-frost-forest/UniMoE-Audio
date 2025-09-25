@@ -18,7 +18,7 @@ import argparse
 import glob
 import datetime
 
-from utils.mod import UniMoEAudio
+from utils.UniMoE_Audio_mod import UniMoEAudio
 
 # Global variables
 audio_model = None
