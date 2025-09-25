@@ -19,12 +19,14 @@ import glob
 import datetime
 
 from utils.UniMoE_Audio_mod import UniMoEAudio
+from examples.audio_loader import AudioPromptLoader
 
 # Global variables
 audio_model = None
+audio_prompt_loader = None
 
 # Configuration parameters
-MODEL_PATH = "./models/UniMoE-Audio-preview"
+MODEL_PATH = "/home/zxy/workspace/tqx/Models/UniMoE-Audio-1603step"
 DEVICE_ID = 0
 
 # Create output directories
@@ -45,6 +47,26 @@ cleanup_stop_event = threading.Event()
 
 
 
+def get_reference_audio_info(language, gender):
+    """Get reference audio path and text for given language and gender."""
+    try:
+        # Initialize audio prompt loader if not already done
+        if audio_prompt_loader is None:
+            temp_loader = AudioPromptLoader()
+        else:
+            temp_loader = audio_prompt_loader
+        
+        audio_info = temp_loader.get_audio_info(language, gender)
+        if audio_info and 'audio_path' in audio_info and 'prompt' in audio_info:
+            # Get absolute path
+            audio_path = str(temp_loader.base_dir / audio_info['audio_path'])
+            return audio_path, audio_info['prompt']
+        else:
+            return None, "This is the audio I want to clone."
+    except Exception as e:
+        logger.warning(f"Failed to load reference audio info for {language}-{gender}: {e}")
+        return None, "This is the audio I want to clone."
+
 # Predefined examples
 PREDEFINED_EXAMPLES = {
     "music-jazz": {
@@ -60,14 +82,16 @@ PREDEFINED_EXAMPLES = {
     "voice-clone-greeting": {
         "type": "voice",
         "description": "Clone voice for friendly greeting",
-        "text": "Hello! It's a pleasure to meet you. Please use my voice to create a digital version. Have a wonderful day!",
-        "reference_text": "This is the audio I want to clone."
+        "text": "Welcome to the world of UniMoE Audio! Let's explore the infinite possibilities of AI audio together. Here, you will experience an unprecedented journey of sound creation.",
+        "reference_text": get_reference_audio_info("english", "male")[1],
+        "reference_audio": get_reference_audio_info("english", "male")[0]
     },
     "voice-clone-storytelling": {
         "type": "voice",
         "description": "Clone voice for storytelling",
-        "text": "Beyond the mountains and across the deep sea, there lay a forgotten magical kingdom where a great adventure was about to unfold.",
-        "reference_text": "This is the audio I want to clone."
+        "text": "在群山和深海的彼岸，有一个被遗忘的魔法王国，一场伟大的冒险即将在那里展开。",
+        "reference_text": get_reference_audio_info("chinese", "female")[1],
+        "reference_audio": get_reference_audio_info("chinese", "female")[0]
     }
 }
 
@@ -131,12 +155,17 @@ def stop_cleanup_thread():
 
 def initialize_model():
     """Initialize UniMoE Audio model."""
-    global audio_model
+    global audio_model, audio_prompt_loader
     if audio_model is not None: return
     if not torch.cuda.is_available(): raise RuntimeError("This application requires an NVIDIA GPU and CUDA environment.")
     logger.info("Initializing UniMoE Audio model...")
     audio_model = UniMoEAudio(MODEL_PATH, device_id=DEVICE_ID)
     logger.info("Model initialization complete!")
+    
+    # Initialize audio prompt loader
+    logger.info("Initializing Audio Prompt Loader...")
+    audio_prompt_loader = AudioPromptLoader()
+    logger.info("Audio Prompt Loader initialization complete!")
     
     # Start cleanup thread after model initialization
     start_cleanup_thread()
@@ -151,7 +180,7 @@ def generate_music(caption, cfg_scale=10.0, temperature=1.0, max_audio_seconds=1
             yield gr.update(), gr.update(), "Please enter a music description."
             return
         
-        yield gr.update(), gr.update(), "Generating music..."
+        yield gr.update(), gr.update(), "Generating music...Please kindly wait"
         start_time = time.time()
         
         # Use UniMoEAudio class for generation
@@ -194,7 +223,7 @@ def generate_voice_clone(target_text, reference_audio, reference_text, cfg_scale
             yield gr.update(), gr.update(), "Please enter the reference audio transcript."
             return
 
-        yield gr.update(), gr.update(), "Generating voice clone..."
+        yield gr.update(), gr.update(), "Starting voice cloning process... Please kindly wait"
         start_time = time.time()
         
         # Use UniMoEAudio class for generation
@@ -533,10 +562,11 @@ def create_demo():
             show_progress="hidden"
         )
         
-        def load_voice_example(text, ref_text, key):
+        def load_voice_example(text, ref_text, ref_audio, key):
              return {
                  main_text_input: gr.update(value=text),
                  reference_text_input: gr.update(value=ref_text),
+                 reference_audio_input: gr.update(value=ref_audio),
                  output_audio: gr.update(value=None),
                  output_download: gr.update(value=None),
                  status_textbox: gr.update(value=f"Template loaded: {key.replace('-', ' ').title()}")
@@ -553,8 +583,13 @@ def create_demo():
         for btn, key, example in voice_examples_buttons:
             btn.click(
                 fn=load_voice_example, 
-                inputs=[gr.Textbox(value=example["text"], visible=False), gr.Textbox(value=example.get("reference_text", ""), visible=False), gr.Textbox(value=key, visible=False)], 
-                outputs=[main_text_input, reference_text_input, output_audio, output_download, status_textbox]
+                inputs=[
+                    gr.Textbox(value=example["text"], visible=False), 
+                    gr.Textbox(value=example.get("reference_text", ""), visible=False),
+                    gr.Textbox(value=example.get("reference_audio", ""), visible=False),
+                    gr.Textbox(value=key, visible=False)
+                ], 
+                outputs=[main_text_input, reference_text_input, reference_audio_input, output_audio, output_download, status_textbox]
             )
         
         for btn, key, example in music_examples_buttons:
@@ -572,7 +607,7 @@ def main():
     
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="UniMoE Audio Web Demo")
-    parser.add_argument("--model", type=str, default="./models/UniMoE-Audio-preview", 
+    parser.add_argument("--model", type=str, default= MODEL_PATH, 
                         help="Path to the model directory (default: ./models/UniMoE-Audio-preview)")
     parser.add_argument("--device", type=int, default=0, 
                         help="CUDA device ID (default: 0)")
