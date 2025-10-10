@@ -151,6 +151,9 @@ cd examples
 # Music Generating
 python inference.py --task text_to_music --input "Caption about music" --output ./music_output --model /path/to/your/model
 
+# Video-to-music generation
+python inference.py --task video_text_to_music --input "Upbeat electronic music" --video ./video.mp4 --output ./video_music_output --model /path/to/your/model
+
 # Voice Cloning / TTS
 python inference.py --task text_to_speech --input "Input text" --ref-audio ref.mp3 --ref-text "Reference text" --output ./speech_output --model /path/to/your/model
 ```

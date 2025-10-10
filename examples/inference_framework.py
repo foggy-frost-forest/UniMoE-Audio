@@ -29,19 +29,29 @@ from utils.UniMoE_Audio_mod import UniMoEAudio
 @dataclass
 class TaskConfig:
     """Configuration for a single audio generation task"""
-    task_type: str  # "text_to_music" or "text_to_speech"
+    task_type: str  # "text_to_music", "text_to_speech", or "video_text_to_music"
     task_id: Optional[str] = None
     
-    # Common parameters
+    # Output configuration
     output_path: str = "./output"
+    save_name: Optional[str] = None
     
-    # Text-to-Music parameters
+    # Text-to-music parameters
     caption: Optional[str] = None
     
-    # Text-to-Speech parameters
+    # Text-to-speech parameters
     target_text: Optional[str] = None
-    reference_audio: Optional[str] = None
-    reference_text: Optional[str] = None
+    prompt_text: Optional[str] = None
+    prompt_wav: Optional[str] = None
+    
+    # Video-to-music parameters
+    video_path: Optional[str] = None
+    
+    # Generation parameters
+    cfg_scale: float = 3.0
+    temperature: float = 1.0
+    fps: int = 8
+    max_frames: int = 64
 
 
 @dataclass
@@ -131,22 +141,47 @@ class InferenceFramework:
                 self.logger.info(f"Generating music: {task.caption}")
                 output_file = self.audio_generator.text_to_music(
                     caption=task.caption,
-                    output_path=task.output_path
+                    save_name=task.save_name or f"music_{int(time.time())}",
+                    output_dir=task.output_path,
+                    cfg_scale=task.cfg_scale,
+                    temperature=task.temperature
                 )
                 
             elif task.task_type == "text_to_speech":
-                if not all([task.target_text, task.reference_audio, task.reference_text]):
-                    raise ValueError("target_text, reference_audio, and reference_text are required for text_to_speech task")
+                if not all([task.target_text, task.prompt_text, task.prompt_wav]):
+                    raise ValueError("target_text, prompt_text, and prompt_wav are required for text_to_speech task")
                 
-                if not os.path.exists(task.reference_audio):
-                    raise FileNotFoundError(f"Reference audio file not found: {task.reference_audio}")
+                if not os.path.exists(task.prompt_wav):
+                    raise FileNotFoundError(f"Prompt audio file not found: {task.prompt_wav}")
                 
                 self.logger.info(f"Generating speech: {task.target_text[:50]}...")
                 output_file = self.audio_generator.text_to_speech(
                     target_text=task.target_text,
-                    reference_audio=task.reference_audio,
-                    reference_text=task.reference_text,
-                    output_path=task.output_path
+                    prompt_text=task.prompt_text,
+                    prompt_wav=task.prompt_wav,
+                    save_name=task.save_name or f"speech_{int(time.time())}",
+                    output_dir=task.output_path,
+                    cfg_scale=task.cfg_scale,
+                    temperature=task.temperature
+                )
+                
+            elif task.task_type == "video_text_to_music":
+                if not all([task.video_path, task.caption]):
+                    raise ValueError("video_path and caption are required for video_text_to_music task")
+                
+                if not os.path.exists(task.video_path):
+                    raise FileNotFoundError(f"Video file not found: {task.video_path}")
+                
+                self.logger.info(f"Generating music from video: {task.caption}")
+                output_file = self.audio_generator.video_text_to_music(
+                    video=task.video_path,
+                    caption=task.caption,
+                    save_name=task.save_name or f"video_music_{int(time.time())}",
+                    output_dir=task.output_path,
+                    fps=task.fps,
+                    max_frames=task.max_frames,
+                    cfg_scale=task.cfg_scale,
+                    temperature=task.temperature
                 )
                 
             else:
@@ -245,15 +280,33 @@ def create_sample_config() -> None:
             "task_type": "text_to_music",
             "task_id": "music_001",
             "caption": "A peaceful piano melody with soft strings in the background",
-            "output_path": "./output/music"
+            "output_path": "./output/music",
+            "save_name": "peaceful_piano",
+            "cfg_scale": 3.0,
+            "temperature": 1.0
         },
         {
             "task_type": "text_to_speech",
             "task_id": "speech_001",
             "target_text": "Hello, this is a demonstration of voice cloning technology.",
-            "reference_audio": "path/to/reference/audio.wav",
-            "reference_text": "Original text from the reference audio",
-            "output_path": "./output/speech"
+            "prompt_text": "Original text from the reference audio",
+            "prompt_wav": "path/to/reference/audio.wav",
+            "output_path": "./output/speech",
+            "save_name": "demo_speech",
+            "cfg_scale": 3.0,
+            "temperature": 1.0
+        },
+        {
+            "task_type": "video_text_to_music",
+            "task_id": "video_music_001",
+            "video_path": "path/to/video.mp4",
+            "caption": "Upbeat electronic music matching the video rhythm",
+            "output_path": "./output/video_music",
+            "save_name": "video_soundtrack",
+            "fps": 8,
+            "max_frames": 64,
+            "cfg_scale": 3.0,
+            "temperature": 1.0
         }
     ]
     

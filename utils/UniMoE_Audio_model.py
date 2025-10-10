@@ -452,6 +452,7 @@ class Qwen2_5_VLMoETextModel(Qwen2_5_VLMoEPreTrainedModel):
             all_router_logits=all_router_logits,
             all_router_top_k=all_router_top_k,
             all_router_expert_mask=all_router_expert_mask,
+            all_router_weight=all_router_weight,
             all_aux_loss=all_aux_loss,
         )
 
@@ -1069,11 +1070,16 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
     def generate(
         self,
         input_ids,
-        codec_input_ids,
         attention_mask,
         dec_output,
         max_tokens,
         min_tokens=None,
+        codec_input_ids: Optional[torch.Tensor] = None,
+        pixel_values: Optional[torch.Tensor] = None,
+        pixel_values_videos: Optional[torch.FloatTensor] = None,
+        image_grid_thw: Optional[torch.LongTensor] = None,
+        video_grid_thw: Optional[torch.LongTensor] = None,
+        second_per_grid_ts: Optional[torch.Tensor] = None,
         cfg_scale: float = 3.0,
         temperature: float = 1.2,
         top_p: float = 0.95,
@@ -1083,17 +1089,21 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         debug_guidance_step: int = 0,
         use_cache=True,
     ):
-
+        if codec_input_ids is not None:
+            assert use_cache 
         batch_size = input_ids.shape[0] // 2
         audio_eos_value = self.config.codec_eos_value
         audio_pad_value = self.config.codec_pad_value
         delay_pattern = self.config.codec_delay_pattern
         max_delay_pattern = max(delay_pattern)
         delay_pattern_Cx = torch.tensor(delay_pattern, device=self.device, dtype=torch.long)
+
         dec_step = min(dec_output.prefill_steps) - 1
+
         eos_detected_Bx = torch.zeros((batch_size,), dtype=torch.bool, device=self.device)
         eos_countdown_Bx = torch.full((batch_size,), -1, dtype=torch.long, device=self.device)
         finished_step_Bx = torch.full((batch_size,), -1, dtype=torch.long, device=self.device)
+
         bos_over = False
         model_kwargs = dict(attention_mask=attention_mask, use_cache=True)
         model_kwargs["past_key_values"] = DynamicCache()
@@ -1103,7 +1113,6 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         position_ids = attention_mask.long().cumsum(-1) - 1
         position_ids.masked_fill_(attention_mask == 0, 1)
         cache_position = torch.arange(0, input_ids.shape[-1], device=input_ids.device)
-
         inputs_embeds = self.calculate_input_embedding(input_ids, codec_input_ids)
         outputs = self.language_model(
             input_ids=None,
@@ -1111,6 +1120,11 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
             position_ids=position_ids,
             past_key_values=past_key_values,
             inputs_embeds=inputs_embeds,
+            pixel_values=pixel_values,
+            pixel_values_videos=pixel_values_videos,
+            image_grid_thw=image_grid_thw,
+            video_grid_thw=video_grid_thw,
+            second_per_grid_ts=second_per_grid_ts,
             use_cache=True,
             output_attentions=False,  
             output_hidden_states=False, 
@@ -1124,13 +1138,13 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         labels_Bx1xC = dec_output.get_labels_at(0)
         if labels_Bx1xC is not None:
             model_kwargs["codec_labels"] = (torch.ones_like(input_ids[1::2]) * -100).unsqueeze(-1).expand(-1, -1, self.num_channels)
- 
+            assert (labels_Bx1xC != self.config.codec_bos_value).sum() == 0
             labels_Bx1xC = torch.full_like(labels_Bx1xC, -100)
             model_kwargs["codec_labels"] = torch.cat((model_kwargs["codec_labels"], labels_Bx1xC), dim=1)
         model_kwargs["past_key_values"] = outputs.past_key_values
         attention_mask = model_kwargs["attention_mask"]
         model_kwargs["attention_mask"] = torch.cat([attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=-1)
-        model_kwargs["cache_position"] = model_kwargs["cache_position"][-1:] + 1 
+        model_kwargs["cache_position"] = model_kwargs["cache_position"][-1:] + 1
 
         while dec_step < max_tokens:
             if (eos_countdown_Bx == 0).all():
@@ -1184,12 +1198,12 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
 
             if not bos_over:
                 bos_over = all(current_step_idx - prefill_step >= max_delay_pattern for prefill_step in dec_output.prefill_steps)
+
             dec_output.update_one(pred_BxC, current_step_idx, not bos_over)
             dec_step += 1
 
         final_step = dec_step + 1
         finished_step_Bx[finished_step_Bx == -1] = final_step - max_delay_pattern
-
         prefill_steps_tensor = torch.tensor(dec_output.prefill_steps, device=self.device)
         lengths_Bx = finished_step_Bx - prefill_steps_tensor
         lengths_Bx = torch.clamp(lengths_Bx, min=0)
@@ -1215,7 +1229,6 @@ class UniAudioRVQQwen2_5VLMoEForConditionalGeneration(Qwen2_5_VLMoEPreTrainedMod
         else:
             print("Warning: Nothing generated for any sequence in the batch.")
             return None, None
-
 
 AutoConfig.register("qwen2_5_vl_moe_text", Qwen2_5_VLMoETextConfig)
 AutoModelForCausalLM.register(Qwen2_5_VLMoETextConfig, Qwen2_5_VLMoETextModel)

@@ -33,13 +33,14 @@ def inference(
     output_path: str = "./output",
     model_path: str = "path/to/your/model",
     device_id: int = 0,
-    reuse_model: bool = True
+    reuse_model: bool = True,
+    video_path: Optional[str] = None
 ) -> Optional[str]:
     """
     Simplified inference function for UniMoE Audio generation.
     
     Args:
-        task: Task type, either "text_to_music" or "text_to_speech"
+        task: Task type, either "text_to_music", "text_to_speech", or "video_text_to_music"
         input_text: Input text for generation
         ref_audio: Reference audio file path (required for text_to_speech)
         ref_text: Reference text (required for text_to_speech)
@@ -47,6 +48,7 @@ def inference(
         model_path: Path to the model
         device_id: GPU device ID
         reuse_model: Whether to reuse the loaded model instance
+        video_path: Video file path (required for video_text_to_music)
     
     Returns:
         Path to the generated audio file, or None if failed
@@ -69,7 +71,10 @@ def inference(
             print(f"Generating music: {input_text}")
             result = _model_instance.text_to_music(
                 caption=input_text,
-                output_path=output_path
+                save_name="inference_music",
+                output_dir=output_path,
+                cfg_scale=10.0,
+                temperature=1.0
             )
             
         elif task == "text_to_speech":
@@ -81,14 +86,36 @@ def inference(
             
             print(f"Generating speech: {input_text}")
             result = _model_instance.text_to_speech(
-                target_text=input_text,
-                reference_audio=ref_audio,
-                reference_text=ref_text,
-                output_path=output_path
+                caption=input_text,
+                prompt_text=ref_text,
+                prompt_wav=ref_audio,
+                save_name="inference_speech",
+                output_dir=output_path,
+                cfg_scale=1.0,
+                temperature=1.0
+            )
+            
+        elif task == "video_text_to_music":
+            if not video_path:
+                raise ValueError("video_path is required for video_text_to_music task")
+            
+            if not os.path.exists(video_path):
+                raise FileNotFoundError(f"Video file not found: {video_path}")
+            
+            print(f"Generating music from video and text: {input_text}")
+            result = _model_instance.video_text_to_music(
+                video=video_path,
+                caption=input_text,
+                save_name="inference_video_music",
+                output_dir=output_path,
+                fps=1,
+                max_frames=1,
+                cfg_scale=10.0,
+                temperature=1.0
             )
             
         else:
-            raise ValueError(f"Unknown task type: {task}. Must be 'text_to_music' or 'text_to_speech'")
+            raise ValueError(f"Unknown task type: {task}. Must be 'text_to_music', 'text_to_speech', or 'video_text_to_music'")
         
         if result:
             print(f"Generation completed: {result}")
@@ -135,8 +162,8 @@ Examples:
     parser.add_argument(
         "--task", "-t",
         required=True,
-        choices=["text_to_music", "text_to_speech"],
-        help="Task type: text_to_music or text_to_speech"
+        choices=["text_to_music", "text_to_speech", "video_text_to_music"],
+        help="Task type: text_to_music, text_to_speech, or video_text_to_music"
     )
     
     parser.add_argument(
@@ -153,6 +180,11 @@ Examples:
     parser.add_argument(
         "--ref-text", "-rt",
         help="Reference text (required for text_to_speech)"
+    )
+    
+    parser.add_argument(
+        "--video", "-v",
+        help="Video file path (required for video_text_to_music)"
     )
     
     parser.add_argument(
@@ -187,6 +219,10 @@ Examples:
         if not args.ref_audio or not args.ref_text:
             print("Error: --ref-audio and --ref-text are required for text_to_speech task")
             return 1
+    elif args.task == "video_text_to_music":
+        if not args.video:
+            print("Error: --video is required for video_text_to_music task")
+            return 1
     
     # Call inference function
     result = inference(
@@ -197,7 +233,8 @@ Examples:
         output_path=args.output,
         model_path=args.model,
         device_id=args.device,
-        reuse_model=not args.no_reuse
+        reuse_model=not args.no_reuse,
+        video_path=args.video
     )
     
     if result:

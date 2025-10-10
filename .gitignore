@@ -16,7 +16,10 @@ assets/audios/*.tar.gz
 
 utils/dac_model/weights_16khz.pth
 utils_bk/
+utils_v2/
 docs/*.html
+workshop/
+v2m_code/
 
 *.tar
 *.tar.gz

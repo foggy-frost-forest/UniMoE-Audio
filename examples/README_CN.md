@@ -1,13 +1,15 @@
-# UniMoE Audio Inference Interface
+# UniMoE Audio 推理接口
 
-这个项目提供了多种方式来使用UniMoE Audio模型进行音频生成，包括简化的inference函数和完整的批处理框架。
+这个项目提供了多种方式来使用UniMoE Audio模型进行音频生成，包括简化的inference函数和完整的批处理框架。该接口支持三种主要任务：文本生成音乐、文本转语音（语音克隆）和视频生成音乐。
 
 ## 文件说明
 
 - `inference.py` - 简化的inference函数，支持单个任务的快捷调用
 - `inference_framework.py` - 完整的批处理框架，支持配置文件和批量任务
-- `config_example.json/yaml` - 框架配置文件示例
-- `tasks_example.json/yaml` - 批量任务配置文件示例
+- `example.py` - 所有支持任务的基本使用示例
+- `audio_loader.py` - 音频提示管理工具
+- `test_config.json` - 框架配置文件示例
+- `prompt_audios.json` - 语音克隆的音频提示数据库
 
 ## 快速开始
 
@@ -21,6 +23,9 @@ python inference.py --task text_to_music --input "A peaceful piano melody" --out
 
 # 语音克隆
 python inference.py --task text_to_speech --input "Hello world" --ref-audio ref.wav --ref-text "Reference text" --output ./speech_output --model /path/to/your/model
+
+# 视频生成音乐
+python inference.py --task video_text_to_music --input "Upbeat electronic music" --video ./video.mp4 --output ./video_music_output --model /path/to/your/model
 ```
 
 #### Python代码中使用
@@ -42,6 +47,15 @@ speech_file = inference(
     input_text="Hello world",
     ref_audio="reference.wav",
     ref_text="Reference transcript",
+    output_path="./output",
+    model_path="/path/to/your/model"
+)
+
+# 视频生成音乐
+video_music_file = inference(
+    task="video_text_to_music",
+    input_text="Upbeat electronic music",
+    video_path="./video.mp4",
     output_path="./output",
     model_path="/path/to/your/model"
 )
