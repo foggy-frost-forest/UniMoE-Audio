@@ -35,7 +35,7 @@ The following instructions are for Linux installation.
 
 ### 1. Clone this repository and navigate to the UniMoE Audio folder
 ```bash
-git clone https://github.com/foggy-frost-forest/UniMoE-Audio.git
+git clone https://github.com/HITsz-TMG/UMOE-Scaling-Unified-Multimodal-LLMs/tree/master/UniMoE-Audio
 cd UniMoE-Audio 
 ```
 
