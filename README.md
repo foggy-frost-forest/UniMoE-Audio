@@ -27,7 +27,7 @@
 
 Here is a short video below for an overview of our model and some showcases via TTS, T2M and VT2M:
 
-<video src="assets/intro_video/UniMoE-Audio_repo.mp4" type="video/mp4" width="80%" controls>
+<video src="https://github.com/user-attachments/assets/37bba89b-67de-432f-8efe-847b53a54513" type="video/mp4" width="80%" controls>
 </video>
 
 # Installation
