@@ -1,95 +1,36 @@
+<h1 align="center">UniMoE-Audio: Unified Speech and Music Generation via Dynamic-Capacity Mixture of Experts</h1>
 
-<!-- <p align="center">
-    <img src="https://s21.ax1x.com/2024/05/14/pkmtDSS.png" width="250" style="margin-bottom: 0.2;"/>
-<p> -->
-<!-- <h2 align="center"> <a href="https://github.com/HITsz-TMG/UMOE-Scaling-Unified-Multimodal-LLMs/">Uni-MoE: Scaling Unified Multimodal LLMs with Mixture of Experts</a></h2> -->
-<!-- <h5 align="center"> If you appreciate our project, please consider giving us a star ⭐ on GitHub to stay updated with the latest developments.  </h2>
-
-<h4 align="center"> -->
-
-
-# Welcome to the repo of **UniMoE-Audio**!
-
-### UniMoE-Audio: 
-### A Unified Speech and Music Generation via Dynamic-Capacity Mixture of Experts
-<div align="left" style="line-height: 1;">
-  |
-  <a href="https://huggingface.co/foggy-frost-forest/UniMoE-Audio" target="_blank">🤗 HuggingFace</a>
-  &nbsp;|
-  <a href="docs/UniMoE_Audio-Paper.pdf" target="_blank">📄 Paper</a>
-  &nbsp;|
-  <a href="https://mukioxun.github.io/Uni-MoE-site/home.html" target="_blank">📰 Website</a>
-  &nbsp;|
-  <!-- <a href="https://huggingface.co/spaces/XiaomiMiMo/mimo_audio_chat" target="_blank">🔥 Online Demo</a>
-  &nbsp;| -->
-  <!-- <a href="https://github.com/XiaomiMiMo/MiMo-Audio-Eval" target="_blank">📊 MiMo-Audio-Eval</a>
-  &nbsp;| -->
-  <br/>
+<div align="center" style="display: flex; justify-content: center; margin-top: 10px;">
+  <a href="https://mukioxun.github.io/Uni-MoE-site/home.html"><img src="https://img.shields.io/badge/📰 -Display%20Website-228B22" style="margin-right: 5px;"></a>
+  <a href="docs/UniMoE_Audio-Paper.pdf"><img src="https://img.shields.io/badge/📄-Research%20Paper-8A2BE2" style="margin-right: 5px;"></a>
+  <a href="https://huggingface.co/foggyforest/UniMoE-Audio-preview"><img src="https://img.shields.io/badge/🤗-Model%20Checkpoints-ED5A22.svg" style="margin-right: 5px;"></a>
 </div>
 
+<p>
+    <strong>UniMoE-Audio</strong> is a unified framework that seamlessly combines speech and music generation. 
+    Powered by a novel <strong>dynamic-capacity Mixture-of-Experts</strong> design, it adapts intelligently to input complexity, 
+    enabling high-fidelity voice and expressive music within a single model.
+</p>
+<p>
+    UniMoE-Audio introduces <strong>a dynamic-capacity routing mechanism</strong> based on Top-P sampling for adaptive expert allocation, 
+    together with a hybrid expert design that separates domain-specific computation (dynamic experts) from universal representations (shared experts). 
+    To address data imbalance and task conflicts, UniMoE-Audio adopts a structured three-stage training curriculum. 
+    From <strong>voice cloning</strong> and <strong>text-to-speech (TTS)</strong> to <strong>text-to-music (T2M)</strong> and <strong>video-text-to-music (VT2M)</strong>, 
+    UniMoE-Audio supports diverse creative workflows. 
+    Extensive experiments confirm its state-of-the-art performance and superior cross-task synergy, paving the way toward <strong>universal audio generation</strong>.
+</p>
 
-## News
-
-- [2025-09-10] 🔥 We released **UniMoE-Audio-preview**. 
-<!-- Check out the [paper]() and [demo](). -->
-
-
-## Performance Showcase
-
-| Prompt | Audio |
-|:--:|:--:|
-| This song contains several drum hits and percussive instruments playing a fast paced rhythm that motivates dancing along. An e-bass is bringing the low end supporting the drums. Cuatro guitars are strumming chords as a rhythmic addition. Trumpets are playing a loud and catchy melody. Some of the musical elements are slightly panned to the left and right side of the speakers. This song may be playing at a cheerful event. | <audio controls width="400" height="50"> <source src="https://github.com/foggy-frost-forest/UniMoE-Audio/raw/main/assets/audios/demo_1.mp3" type="audio/mpeg"> demo 1</audio> |
-| This song contains a digital drum playing a simple pattern with a kick and a snare sound. Synthesizers are playing a repeating melody in the higher register. Another synth sound is playing a more aggressive lead sound with a countermelody. A string sample is being used to create a short hit. This song may be playing during a car ride. |<audio controls width="400" height="50"><source src="https://github.com/foggy-frost-forest/UniMoE-Audio/raw/main/assets/audios/demo_2.mp3" type="audio/mpeg"> demo 2</audio> |
-| This is a four on the floor style of production. The song is a drum and bass type of song with a bright and fuzzy synth to add a melodic element. The first part of the song feels suspenseful. | <audio controls width="400" height="50"> <source src="https://github.com/foggy-frost-forest/UniMoE-Audio/raw/main/assets/audios/demo_3.mp3" type="audio/mpeg"> demo 3</audio>|
-| This is a rock music piece. There is a medium-to-high pitched electric guitar solo at the forefront. In the melodic background, a keyboard and a bass guitar repeating the same pattern can be heard. The acoustic drums are playing a loud and slightly fast-paced rock drum beat. There is a rebellious atmosphere to this piece. It can be used in the soundtrack of a teenage drama or a crime shootout audio game. | <audio controls width="400" height="50"> <source src="https://github.com/foggy-frost-forest/UniMoE-Audio/raw/main/assets/audios/demo_4.mp3" type="audio/mpeg"> demo 4</audio> |
-|||
-
-https://github.com/user-attachments/assets/08a9ee44-f62b-465f-9793-7e2a45573d29
-
-https://github.com/user-attachments/assets/83adee25-957e-4c81-bff2-108b78633db7
-
-https://github.com/user-attachments/assets/910b1fb1-76c1-4743-9f83-36ecfcbf7f9b
-
-https://github.com/user-attachments/assets/2881161e-f86f-463d-a910-06ab04799eae
-
-More performance showcases can be found in the [web](https://mukioxun.github.io/Uni-MoE-site/showcase.html).
-## UniMoE-Audio
-
-**UniMoE-Audio** is a unified framework for speech and music generation.  
-It uses a **dynamic-capacity Mixture-of-Experts (MoE)** that adapts to input complexity, enabling high-fidelity voice and expressive music within one model.
-
-### Dynamic-capacity MoE for Task Conflict Mitigation
-
-The core is a Transformer with **Dynamic-Capacity MoE** layers.  
-- **Top-P routing** dynamically selects experts per token, avoiding waste on simple tokens and boosting complex ones.  
-- Combined with the **three-stage training curriculum**, UniMoE-Audio effectively handles data imbalance and task conflicts.  
-[Fig. 2](#fig2) shows the architecture.
- 
-<img src="assets/img/AudioLLM_model-MoE.png" alt="Performance of UniMoE-Audio" style="max-width: 100%; width: 1000px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
+<img src="assets/img/abstract.png" alt="Performance of UniMoE-Audio" style="max-width: 90%; width: 800px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
 <div align="center">
-<em>Left: Unified architecture for multimodal speech/music generation.<br>
-Right: Top-P routing for token-based dynamic expert allocation.</em>
-
-<strong>Fig. 1</strong> UniMoE-Audio Structure
+<strong>Fig. 1</strong> Performance of UniMoE-Audio
 </div>
 
-### Competitive Performance on Comprehensive Speech and Music Metrics
+Here is a short video below for an overview of our model and some showcases via TTS, T2M and VT2M:
 
-UniMoE-Audio features **Top-P routing** for adaptive expert allocation and a hybrid expert design separating domain-specific and shared computation. 
-With a **three-stage training curriculum** (specialist training, warm-up integration, joint training), it supports **voice cloning, TTS, T2M, and V2M**, achieving state-of-the-art performance and cross-task synergy.
+<video src="assets/intro_video/UniMoE-Audio_repo.mp4" type="video/mp4" width="80%" controls>
+</video>
 
- 
-<img src="assets/img/Radar_page_001.png" alt="Performance of UniMoE-Audio" style="max-width: 90%; width: 800px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
-<div align="center">
-<strong>Fig. 2</strong> Performance of UniMoE-Audio
-</div>
-
-
-<!-- <img src="assets/img/AudioLLM_model-MoE.png" alt="UniMoE-Audio Structure" style="max-width: 100%; width: 800px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
-<p align="center"><strong>Fig. 1</strong>  UniMoE-Audio Structure</p> -->
-
-
-## Installation
+# Installation
 The following instructions are for Linux installation.
 
 ### 1. Clone this repository and navigate to the UniMoE Audio folder
@@ -148,14 +89,14 @@ models
 conda activate unimoe-audio
 cd examples
 
-# Music Generating
-python inference.py --task text_to_music --input "Caption about music" --output ./music_output --model /path/to/your/model
+# Generate music
+python inference.py --task text_to_music --input "A peaceful piano melody" --output ./music_output --model /path/to/your/model
+
+# Voice cloning
+python inference.py --task text_to_speech --input "Hello world" --ref-audio ref.wav --ref-text "Reference text" --output ./speech_output --model /path/to/your/model
 
 # Video-to-music generation
 python inference.py --task video_text_to_music --input "Upbeat electronic music" --video ./video.mp4 --output ./video_music_output --model /path/to/your/model
-
-# Voice Cloning / TTS
-python inference.py --task text_to_speech --input "Input text" --ref-audio ref.mp3 --ref-text "Reference text" --output ./speech_output --model /path/to/your/model
 ```
 
 `inference_framework.py`: Complete batch processing framework with configuration files.
@@ -177,3 +118,32 @@ pip install -r configs/requirements_web.txt
 python web_demo.py --model /path/to/your/model
 ```
 
+## Technical Details:
+
+<img src="assets/img/AudioLLM_model-MoE.png" alt="Performance of UniMoE-Audio" style="max-width: 100%; width: 1000px; height: auto; display: block; margin: 0 auto; border-radius: 8px; box-shadow: 0 4px 12px rgba(123, 179, 255, 0.15);" align="center">
+<div align="center">
+<em>Left: Unified architecture for multimodal speech/music generation.<br>
+Right: Top-P routing for token-based dynamic expert allocation.</em>
+
+<strong>Fig. 2</strong> UniMoE-Audio Structure
+</div>
+
+### Key Innovations
+
+#### **Top-P Dynamic Routing Strategy**
+We introduce a **Top-P routing strategy** that overcomes the limitations of conventional static Top-K routing:
+
+- **Dynamic Expert Allocation**: Instead of assigning a fixed number of experts to every token, our approach dynamically determines the number of experts based on token complexity
+- **Resource Efficiency**: Simple tokens don't consume unnecessary resources, while complex tokens receive sufficient processing power
+- **Performance Optimization**: Results in improved overall efficiency and performance
+
+#### **Three-Stage Training Curriculum**
+We employ a comprehensive training approach to enable effective joint learning from imbalanced data:
+
+1. **Independent Specialist Training** - Initial expert specialization
+2. **Integration with Warm-up** - Gradual system integration  
+3. **Synergistic Joint Training** - Collaborative optimization
+
+This curriculum successfully overcomes the challenges of data imbalance and task conflict.
+
+> **For detailed technical information, please refer to our [📄 research paper](docs/UniMoE_Audio-Paper.pdf)**
