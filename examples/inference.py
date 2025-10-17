@@ -17,7 +17,7 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
     
-from utils.UniMoE_Audio_mod import UniMoEAudio
+from UniMoE_Audio import UniMoEAudio
 
 
 # Global model instance for reuse
@@ -71,10 +71,7 @@ def inference(
             print(f"Generating music: {input_text}")
             result = _model_instance.text_to_music(
                 caption=input_text,
-                save_name="inference_music",
                 output_dir=output_path,
-                cfg_scale=10.0,
-                temperature=1.0
             )
             
         elif task == "text_to_speech":
@@ -86,13 +83,10 @@ def inference(
             
             print(f"Generating speech: {input_text}")
             result = _model_instance.text_to_speech(
-                caption=input_text,
-                prompt_text=ref_text,
+                transcription=input_text,
+                prompt_transcription=ref_text,
                 prompt_wav=ref_audio,
-                save_name="inference_speech",
                 output_dir=output_path,
-                cfg_scale=1.0,
-                temperature=1.0
             )
             
         elif task == "video_text_to_music":
@@ -106,12 +100,7 @@ def inference(
             result = _model_instance.video_text_to_music(
                 video=video_path,
                 caption=input_text,
-                save_name="inference_video_music",
                 output_dir=output_path,
-                fps=1,
-                max_frames=1,
-                cfg_scale=10.0,
-                temperature=1.0
             )
             
         else:

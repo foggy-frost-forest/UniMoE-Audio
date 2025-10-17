@@ -18,7 +18,7 @@ import argparse
 import glob
 import datetime
 
-from utils.UniMoE_Audio_release import UniMoEAudio
+from UniMoE_Audio import UniMoEAudio
 from examples.audio_loader import AudioPromptLoader
 
 # Global variables
@@ -26,7 +26,7 @@ audio_model = None
 audio_prompt_loader = None
 
 # Configuration
-MODEL_PATH = "path/to/your/model"
+MODEL_PATH = "path/to/model" 
 DEVICE_ID = 0
 
 # Output directories
@@ -249,12 +249,9 @@ def generate_music(caption, cfg_scale=10.0, temperature=1.0, max_audio_seconds=1
         output_paths = audio_model.text_to_music(
             caption=caption,
             output_dir=OUTPUT_DIR,
-            cfg_scale=cfg_scale,
             temperature=temperature,
             top_p=top_p,
             cfg_filter_top_k=cfg_filter_top_k,
-            eos_prob_mul_factor=eos_prob_mul_factor,
-            do_sample=do_sample
         )
         
         generation_time = time.time() - start_time
@@ -290,16 +287,14 @@ def generate_voice_clone(target_text, reference_audio, reference_text, cfg_scale
         
         # Use UniMoEAudio class for generation
         output_paths = audio_model.text_to_speech(
-            caption=target_text,
-            prompt_text=reference_text,
+            transcription=target_text,
+            prompt_transcription=reference_text,
             prompt_wav=reference_audio,
             output_dir=OUTPUT_DIR,
-            cfg_scale=cfg_scale,
+            max_audio_seconds=max_audio_seconds,
             temperature=temperature,
             top_p=top_p,
             cfg_filter_top_k=cfg_filter_top_k,
-            eos_prob_mul_factor=eos_prob_mul_factor,
-            do_sample=do_sample
         )
         
         generation_time = time.time() - start_time
@@ -316,7 +311,7 @@ def generate_voice_clone(target_text, reference_audio, reference_text, cfg_scale
         yield gr.update(), f"Cloning failed:\n{str(e)}"
 
 def generate_tts(target_text, voice_type, cfg_scale=1.0, temperature=1.0, 
-                 max_audio_seconds=30, top_p=1.0, cfg_filter_top_k=45, 
+                 max_audio_seconds=10, top_p=1.0, cfg_filter_top_k=45, 
                  eos_prob_mul_factor=1.0, do_sample=True):
     """Text-to-Speech generation function using predefined voice types."""
     try:
@@ -362,16 +357,13 @@ def generate_tts(target_text, voice_type, cfg_scale=1.0, temperature=1.0,
         
         # Use UniMoEAudio class for generation
         output_paths = audio_model.text_to_speech(
-            caption=target_text,
-            prompt_text=reference_text,
+            transcription=target_text,
+            prompt_transcription=reference_text,
             prompt_wav=reference_audio,
             output_dir=OUTPUT_DIR,
-            cfg_scale=cfg_scale,
             temperature=temperature,
             top_p=top_p,
             cfg_filter_top_k=cfg_filter_top_k,
-            eos_prob_mul_factor=eos_prob_mul_factor,
-            do_sample=do_sample
         )
         
         generation_time = time.time() - start_time
@@ -407,14 +399,9 @@ def generate_video_music(video_file, caption, cfg_scale=10.0, temperature=1.0,
             video=video_file,
             caption=caption,
             output_dir=OUTPUT_DIR,
-            cfg_scale=cfg_scale,
             temperature=temperature,
             top_p=top_p,
             cfg_filter_top_k=cfg_filter_top_k,
-            eos_prob_mul_factor=eos_prob_mul_factor,
-            do_sample=do_sample,
-            fps=fps,
-            max_frames=max_frames
         )
         
         generation_time = time.time() - start_time

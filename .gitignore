@@ -20,6 +20,7 @@ utils_v2/
 docs/*.html
 workshop/
 v2m_code/
+HF-Repo/
 
 *.tar
 *.tar.gz

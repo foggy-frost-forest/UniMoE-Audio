@@ -23,7 +23,7 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.insert(0, parent_dir)
 
-from utils.UniMoE_Audio_mod import UniMoEAudio
+from UniMoE_Audio import UniMoEAudio
 
 
 @dataclass
@@ -34,7 +34,6 @@ class TaskConfig:
     
     # Output configuration
     output_path: str = "./output"
-    save_name: Optional[str] = None
     
     # Text-to-music parameters
     caption: Optional[str] = None
@@ -48,10 +47,11 @@ class TaskConfig:
     video_path: Optional[str] = None
     
     # Generation parameters
-    cfg_scale: float = 3.0
     temperature: float = 1.0
-    fps: int = 8
-    max_frames: int = 64
+    max_audio_seconds: int = 20
+    min_audio_seconds: int = 8
+    top_p: float = 1.0
+    cfg_filter_top_k: int = 45
 
 
 @dataclass
@@ -139,13 +139,16 @@ class InferenceFramework:
                     raise ValueError("Caption is required for text_to_music task")
                 
                 self.logger.info(f"Generating music: {task.caption}")
-                output_file = self.audio_generator.text_to_music(
+                output_files = self.audio_generator.text_to_music(
                     caption=task.caption,
-                    save_name=task.save_name or f"music_{int(time.time())}",
                     output_dir=task.output_path,
-                    cfg_scale=task.cfg_scale,
-                    temperature=task.temperature
+                    max_audio_seconds=task.max_audio_seconds,
+                    min_audio_seconds=task.min_audio_seconds,
+                    temperature=task.temperature,
+                    top_p=task.top_p,
+                    cfg_filter_top_k=task.cfg_filter_top_k
                 )
+                output_file = output_files[0] if output_files else None
                 
             elif task.task_type == "text_to_speech":
                 if not all([task.target_text, task.prompt_text, task.prompt_wav]):
@@ -155,15 +158,18 @@ class InferenceFramework:
                     raise FileNotFoundError(f"Prompt audio file not found: {task.prompt_wav}")
                 
                 self.logger.info(f"Generating speech: {task.target_text[:50]}...")
-                output_file = self.audio_generator.text_to_speech(
-                    target_text=task.target_text,
-                    prompt_text=task.prompt_text,
+                output_files = self.audio_generator.text_to_speech(
+                    transcription=task.target_text,
+                    prompt_transcription=task.prompt_text,
                     prompt_wav=task.prompt_wav,
-                    save_name=task.save_name or f"speech_{int(time.time())}",
                     output_dir=task.output_path,
-                    cfg_scale=task.cfg_scale,
-                    temperature=task.temperature
+                    max_audio_seconds=min(task.max_audio_seconds, 10),  # TTS max is 10 seconds
+                    min_audio_seconds=max(task.min_audio_seconds, 2),   # TTS min is 2 seconds
+                    temperature=task.temperature,
+                    top_p=task.top_p,
+                    cfg_filter_top_k=task.cfg_filter_top_k
                 )
+                output_file = output_files[0] if output_files else None
                 
             elif task.task_type == "video_text_to_music":
                 if not all([task.video_path, task.caption]):
@@ -173,16 +179,17 @@ class InferenceFramework:
                     raise FileNotFoundError(f"Video file not found: {task.video_path}")
                 
                 self.logger.info(f"Generating music from video: {task.caption}")
-                output_file = self.audio_generator.video_text_to_music(
+                output_files = self.audio_generator.video_text_to_music(
                     video=task.video_path,
                     caption=task.caption,
-                    save_name=task.save_name or f"video_music_{int(time.time())}",
                     output_dir=task.output_path,
-                    fps=task.fps,
-                    max_frames=task.max_frames,
-                    cfg_scale=task.cfg_scale,
-                    temperature=task.temperature
+                    max_audio_seconds=task.max_audio_seconds,
+                    min_audio_seconds=task.min_audio_seconds,
+                    temperature=task.temperature,
+                    top_p=task.top_p,
+                    cfg_filter_top_k=task.cfg_filter_top_k
                 )
+                output_file = output_files[0] if output_files else None
                 
             else:
                 raise ValueError(f"Unknown task type: {task.task_type}")
@@ -281,9 +288,11 @@ def create_sample_config() -> None:
             "task_id": "music_001",
             "caption": "A peaceful piano melody with soft strings in the background",
             "output_path": "./output/music",
-            "save_name": "peaceful_piano",
-            "cfg_scale": 3.0,
-            "temperature": 1.0
+            "temperature": 1.0,
+            "max_audio_seconds": 20,
+            "min_audio_seconds": 8,
+            "top_p": 1.0,
+            "cfg_filter_top_k": 45
         },
         {
             "task_type": "text_to_speech",
@@ -292,9 +301,11 @@ def create_sample_config() -> None:
             "prompt_text": "Original text from the reference audio",
             "prompt_wav": "path/to/reference/audio.wav",
             "output_path": "./output/speech",
-            "save_name": "demo_speech",
-            "cfg_scale": 3.0,
-            "temperature": 1.0
+            "temperature": 1.0,
+            "max_audio_seconds": 10,
+            "min_audio_seconds": 2,
+            "top_p": 1.0,
+            "cfg_filter_top_k": 45
         },
         {
             "task_type": "video_text_to_music",
@@ -302,11 +313,11 @@ def create_sample_config() -> None:
             "video_path": "path/to/video.mp4",
             "caption": "Upbeat electronic music matching the video rhythm",
             "output_path": "./output/video_music",
-            "save_name": "video_soundtrack",
-            "fps": 8,
-            "max_frames": 64,
-            "cfg_scale": 3.0,
-            "temperature": 1.0
+            "temperature": 1.0,
+            "max_audio_seconds": 20,
+            "min_audio_seconds": 8,
+            "top_p": 1.0,
+            "cfg_filter_top_k": 45
         }
     ]
     
