@@ -56,8 +56,6 @@ then install the torch packages
    # Use Alibaba Cloud mirror source
    pip install torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 -i https://mirrors.aliyun.com/pypi/simple/ --extra-index-url https://download.pytorch.org/whl/cu121
    ```
-A `dac model` is also required to be downloaded in '/path/to/UniMoE-Audio/utils/dac_model'.
-It will be automatically downloaded when running the first time.
 
 ## UniMoE Audio Weights
 `All weights` should be downloaded to ensure use.
@@ -87,6 +85,7 @@ UniMoE_Audio-preview
     ├── video_preprocessor_config.json
     └── vocab.json
 ```
+A `dac model` is also required to be downloaded in '/path/to/UniMoE-Audio/dac_model'.
 ## How to infer and deploy your demo
 
 ### 1.Make sure that all the weights are downloaded and the running environment is set correctly.
